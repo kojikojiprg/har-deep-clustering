@@ -4,6 +4,8 @@ models/
 !modules/individual/models/
 !modules/group/models/
 videos/
+notebooks/
+logs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
