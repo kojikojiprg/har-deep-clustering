@@ -3,6 +3,8 @@ scipy
 matplotlib
 seaborn
 tqdm
+yaml
+types-PyYAML
 
 opencv-python
 scikit-learn
