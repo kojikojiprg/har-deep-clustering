@@ -71,14 +71,10 @@ class DeepClusteringModel(LightningModule):
 
         # train autoencoder
         if optimizer_idx == 0:
-            if np.all(np.isnan(bboxs.cpu().numpy())):
-                # all of bboxs are nan
-                return None
-
             z, frames_out, flows_out = self._ae(frames, flows, bboxs)
 
             # calc loss autoencoder
-            lr_total = 0.
+            lr_total = 0
             for i in range(batch_size):
                 for j in range(self._n_samples_batch):
                     try:
@@ -89,8 +85,6 @@ class DeepClusteringModel(LightningModule):
                         continue
                     x1, y1, x2, y2 = bx.astype(int)
                     frame_bbox = frames[i, :, seq_len // 2, y1:y2, x1:x2]
-                    if frame_bbox.shape[1] == 0 or frame_bbox.shape[2] == 0:
-                        print(x1, y1, x2, y2)
                     flow_bbox = flows[i, :, seq_len // 2, y1:y2, x1:x2]
                     frame_bbox = F.resize(frame_bbox, (w, h), antialias=True)
                     flow_bbox = F.resize(flow_bbox, (w, h), antialias=True)
@@ -99,6 +93,9 @@ class DeepClusteringModel(LightningModule):
                     lr_total += self._lr(flows_out[i, j], flow_bbox)
 
             self.log_dict({"lr": lr_total}, prog_bar=True, on_step=True, on_epoch=True)
+            if np.all(np.isnan(bboxs.cpu().numpy())):
+                # all of bboxs are nan
+                return None
             return lr_total
 
         # train clustering
@@ -114,7 +111,7 @@ class DeepClusteringModel(LightningModule):
 
             if (
                 self.current_epoch % self._update_interval == 0  # periodical update
-                or self.current_epoch == self._cfg.epoch - 1  # last epoch
+                or self.current_epoch == self._cfg.epochs - 1  # last epoch
             ):
                 # save clustering label
                 # self._c_hist.append(self._c_hist_epoch.cpu().detach().numpy())
@@ -122,7 +119,7 @@ class DeepClusteringModel(LightningModule):
                 self._cm.update_target_distribution(s, batch_idxs)
 
             # calc loss clustering
-            lc_total = 0.
+            lc_total = 0
             for i, batch_idx in enumerate(batch_idxs):
                 idx = batch_idx * self._n_samples_batch
                 tmp_target = self._cm.target_distribution[

@@ -1,9 +1,11 @@
 import argparse
 import os
 import sys
+from datetime import timedelta
 
 from lightning.pytorch import Trainer
 from lightning.pytorch.loggers import TensorBoardLogger
+from lightning.pytorch.strategies.ddp import DDPStrategy
 
 sys.path.append("src")
 from dataset import Datamodule
@@ -72,6 +74,7 @@ def main():
 
     # training
     print("=> training")
+    ddp = DDPStrategy(timeout=timedelta(seconds=3))
     trainer = Trainer(
         logger=TensorBoardLogger(log_dir, name=dataset_type),
         callbacks=model.callbacks,
@@ -79,7 +82,7 @@ def main():
         accumulate_grad_batches=config.accumulate_grad_batches,
         accelerator="gpu",
         devices=gpu_ids,
-        strategy="ddp",
+        strategy=ddp,
     )
     trainer.fit(model, datamodule=datamodule)
 
