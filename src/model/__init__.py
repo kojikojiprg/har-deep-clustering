@@ -21,10 +21,11 @@ class DeepClusteringModel(LightningModule):
         checkpoint_dir: str,
     ):
         super().__init__()
-        # self.automatic_optimization = True
+        self.automatic_optimization = False
 
         self._cfg = cfg
         self._update_interval = cfg.update_interval
+        self._n_accumulate = cfg.accumulate_grad_batches
         self._n_samples = n_samples
         self._n_samples_batch = n_samples_batch
 
@@ -61,8 +62,10 @@ class DeepClusteringModel(LightningModule):
     def target_distribution(self) -> NDArray:
         return self._cm.target_distribution.detach().cpu().numpy()
 
-    def training_step(self, batch, batch_idx, optimizer_idx):
-        frames, flows, bboxs, batch_idxs = batch
+    def training_step(self, batch, batch_idx):
+        frames, flows, bboxs, data_idxs = batch
+        optim_ae, optim_cm = self.optimizers()
+        sch_ae, sch_cm = self.lr_schedulers()
 
         # get constants
         batch_size, _, seq_len = frames.shape[:3]
@@ -70,43 +73,46 @@ class DeepClusteringModel(LightningModule):
         h = self._cfg.fake_size.h
 
         # train autoencoder
-        if optimizer_idx == 0:
-            z, frames_out, flows_out = self._ae(frames, flows, bboxs)
+        z, frames_out, flows_out = self._ae(frames, flows, bboxs)
 
-            # calc loss autoencoder
-            lr_total = 0
-            for i in range(batch_size):
-                for j in range(self._n_samples_batch):
-                    try:
-                        bx = bboxs[i, j].cpu().numpy()
-                    except IndexError:
-                        continue  # last batch of epoch
-                    if np.any(np.isnan(bx)):
-                        continue
-                    x1, y1, x2, y2 = bx.astype(int)
-                    frame_bbox = frames[i, :, seq_len // 2, y1:y2, x1:x2]
-                    flow_bbox = flows[i, :, seq_len // 2, y1:y2, x1:x2]
-                    frame_bbox = F.resize(frame_bbox, (w, h), antialias=True)
-                    flow_bbox = F.resize(flow_bbox, (w, h), antialias=True)
+        # calc loss autoencoder
+        lr_total = 0
+        for i in range(batch_size):
+            for j in range(self._n_samples_batch):
+                try:
+                    bx = bboxs[i, j].cpu().numpy()
+                except IndexError:
+                    continue  # last batch of epoch
+                if np.any(np.isnan(bx)):
+                    continue
+                x1, y1, x2, y2 = bx.astype(int)
+                frame_bbox = frames[i, :, seq_len - 1, y1:y2, x1:x2]
+                flow_bbox = flows[i, :, seq_len - 1, y1:y2, x1:x2]
+                frame_bbox = F.resize(frame_bbox, (w, h), antialias=True)
+                flow_bbox = F.resize(flow_bbox, (w, h), antialias=True)
 
-                    lr_total += self._lr(frames_out[i, j], frame_bbox)
-                    lr_total += self._lr(flows_out[i, j], flow_bbox)
+                lr_total = lr_total + self._lr(frames_out[i, j], frame_bbox)
+                lr_total = lr_total + self._lr(flows_out[i, j], flow_bbox)
+        lr_total = lr_total / self._n_accumulate
+        if np.all(np.isnan(bboxs.cpu().numpy())):
+            # all of bboxs are nan, backward zero
+            lr_total = self._lr(frames_out, frames_out) + self._lr(flows_out, flows_out)
 
-            self.log_dict({"lr": lr_total}, prog_bar=True, on_step=True, on_epoch=True)
-            if np.all(np.isnan(bboxs.cpu().numpy())):
-                # all of bboxs are nan
-                return None
-            return lr_total
+        # step autoencoder optimizer
+        self.manual_backward(lr_total)
+        if (batch_idx + 1) % self._n_accumulate == 0:
+            optim_ae.step()
+            optim_ae.zero_grad()
+            sch_ae.step()
 
         # train clustering
-        if optimizer_idx == 1:
-            z, _, _ = self._ae(frames, flows, bboxs)
+        if self.current_epoch + 1 >= self._cfg.clustering_start_epoch:
             z, s, c = self._cm(z.detach())
 
             # update clustering label
-            # for i, batch_idx in enumerate(batch_idxs.cpu()):
+            # for i, data_idx in enumerate(data_idxs.cpu()):
             #     for j in range(self._n_samples_batch):
-            #         idx = batch_idx * self._n_samples_batch + j
+            #         idx = data_idx * self._n_samples_batch + j
             #         self._c_hist_epoch[idx] = c[i, j]
 
             if (
@@ -116,27 +122,36 @@ class DeepClusteringModel(LightningModule):
                 # save clustering label
                 # self._c_hist.append(self._c_hist_epoch.cpu().detach().numpy())
                 # update target
-                self._cm.update_target_distribution(s, batch_idxs)
+                self._cm.update_target_distribution(s, data_idxs)
 
             # calc loss clustering
             lc_total = 0
-            for i, batch_idx in enumerate(batch_idxs):
-                idx = batch_idx * self._n_samples_batch
-                tmp_target = self._cm.target_distribution[
-                    idx : idx + self._n_samples_batch
-                ]
+            for i, data_idx in enumerate(data_idxs):
+                idx = data_idx * self._n_samples_batch
+                tmp_target = self._cm.target_distribution[idx : idx + self._n_samples_batch]
                 tmp_s = s[i]
-                lc_total += self._lc(tmp_s.log(), tmp_target)
-            self.log_dict({"lc": lc_total}, prog_bar=True, on_step=True, on_epoch=True)
+                lc_total = lc_total + self._lc(tmp_s.log(), tmp_target)
+            lc_total = lc_total / self._n_accumulate
 
-            return lc_total
+            # step clustering optimizer
+            self.manual_backward(lc_total)
+            if (batch_idx + 1) % self._n_accumulate == 0:
+                optim_cm.step()
+                optim_cm.zero_grad()
+                sch_cm.step()
+        else:
+            lc_total = 0
+
+        self.log_dict(
+            {"lr": lr_total, "lc": lc_total}, prog_bar=True, on_step=True, on_epoch=True
+        )
 
     def predict_step(self, batch, batch_idx, dataloader_idx):
-        frames, flows, bboxs, batch_idxs = batch
+        frames, flows, bboxs, data_idxs = batch
 
         z, _, _, _, c = self(frames, flows, bboxs)
         preds = []
-        for i in batch_idxs:
+        for i in data_idxs:
             for j in range(self._n_sampels_batch):
                 data = {
                     "sample_num": i + j,
