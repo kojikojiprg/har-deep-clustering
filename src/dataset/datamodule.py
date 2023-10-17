@@ -1,7 +1,10 @@
+from typing import Union
+
 from lightning.pytorch import LightningDataModule
 from torch.utils.data import DataLoader
 
 from .collective_activity import CollectiveActivityDataset
+from .volleyball import VolleyballDataset
 
 
 class Datamodule(LightningDataModule):
@@ -17,16 +20,17 @@ class Datamodule(LightningDataModule):
         super().__init__()
         self._batch_size = batch_size
 
+        self._dataset: Union[CollectiveActivityDataset, VolleyballDataset]
         if dataset_type == "collective":
             self._dataset = CollectiveActivityDataset(
                 dataset_dir, seq_len, resize_ratio, stage
             )
         elif dataset_type == "volleyball":
-            pass
+            self._dataset = VolleyballDataset(dataset_dir, seq_len, resize_ratio, stage)
         elif dataset_type == "video":
             pass
         else:
-            raise ValueError
+            raise KeyError
 
     @property
     def n_samples(self):
