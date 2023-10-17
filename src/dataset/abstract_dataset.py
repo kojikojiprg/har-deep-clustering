@@ -43,7 +43,7 @@ class AbstractDataset(Dataset, metaclass=ABCMeta):
 
         frames = self._frames[video_idx][data_idx : data_idx + self._seq_len].transpose(1, 0)
         flows = self._flows[video_idx][data_idx : data_idx + self._seq_len].transpose(1, 0)
-        bboxs = self._bboxs[video_idx][data_idx + self._seq_len - 1]
+        bboxs = self._bboxs[video_idx][data_idx + self._seq_len]
         # append dmy bboxs
         if len(bboxs) < self._n_samples_batch:
             diff_num = self._n_samples_batch - len(bboxs)

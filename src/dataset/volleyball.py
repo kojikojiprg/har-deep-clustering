@@ -56,11 +56,10 @@ class VolleyballDataset(AbstractDataset):
             with open(ann_path, "r") as f:
                 ann = f.readlines()
                 ann = [line.split("\t") for line in ann]
-            n_last_frame = int(ann[-1][0].replace(".jpg", ""))
 
-            video_num, frame_num = clip_dir.split("/")[-2:]
+            video_num, frame_num = clip_dir.split("/")[-3:-1]
             clip_name = f"{video_num}_{frame_num}"
-            annotations[clip_name] = {"annotation": ann, "n_last_frame": n_last_frame}
+            annotations[clip_name] = ann
         return annotations
 
     def _load_frames(self, clip_dirs, clip_names):
@@ -96,13 +95,13 @@ class VolleyballDataset(AbstractDataset):
     def _extract_bbox(self, annotations, raw_frame_sizes):
         max_n_samples = 0
 
-        for clip_name, data in annotations.items():
+        for clip_name, ann in annotations.items():
             frame_size = raw_frame_sizes[clip_name]
             rx = self.w / frame_size[0]
             ry = self.h / frame_size[1]
 
             bboxs_clip = []
-            for line in data["annotation"]:
+            for line in ann:
                 n_persons = int(line[1])
                 bboxs = []
                 for i in range(2, len(line), 6):
@@ -124,12 +123,11 @@ class VolleyballDataset(AbstractDataset):
 
         self._n_samples_batch = max_n_samples
 
-    def _calc_idx_ranges(self, annotations):
+    def _calc_idx_ranges(self, clip_dirs):
         idx_ranges = []
-        seq_len = 20
         n_start_idx = 0
-        for data in annotations.values():
-            n_last_idx = data["n_last_frame"] - seq_len + n_start_idx + 1
+        for _ in range(len(clip_dirs)):
+            n_last_idx = 41 - self._seq_len + n_start_idx  # all of clips have 41 frames
             idx_ranges.append((n_start_idx, n_last_idx))
             n_start_idx = n_last_idx
 
