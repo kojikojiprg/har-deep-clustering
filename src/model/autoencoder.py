@@ -64,7 +64,6 @@ class Decoder(nn.Module):
         self.net = nn.Sequential(
             # input is Z, going into a convolution
             nn.ConvTranspose2d(480, ndf * 8, 4, 3, (2, 0), bias=False),
-            # nn.ConvTranspose2d(ndf * 8, ndf * 8, 4, 3, (2, 0), bias=False),
             nn.BatchNorm2d(ndf * 8),
             nn.LeakyReLU(0.1, True),
             # state size. ``(ngf*8) x 12 x 16``
