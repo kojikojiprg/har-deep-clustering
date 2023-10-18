@@ -1,0 +1,30 @@
+batch_size: 4
+seq_len: 20
+resize_ratio: 0.5
+epochs: 200
+clustering_start_epoch: 100
+update_interval: 5
+accumulate_grad_batches: 16
+
+fake_size:  # fake frame and flow of autoencoder size
+  w: 192
+  h: 256
+
+autoencoder:
+  i3d:
+    final_endpoint: Mixed_3c
+  roialign:
+    output_size: 5
+    spatial_scale: 0.125
+    aligned: False
+  ndf: 64
+
+clustering:
+  n_clusters: 6  # nonaction, crossing, waiting, queueing, walking, talking
+  ndf1: 256  # decoder
+  ndf2: 32  # decoder
+  alpha: 1  # freedom of student T
+
+optim:
+  lr_rate_ae: 0.0001
+  lr_rate_cm: 0.00001
