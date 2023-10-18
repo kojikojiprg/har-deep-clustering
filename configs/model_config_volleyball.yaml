@@ -20,7 +20,7 @@ autoencoder:
   ndf: 64
 
 clustering:
-  n_clusters: 6
+  n_clusters: 9  # waiting, setting, digging, failing, spiking, blocking, jumping, moving, standing
   ndf1: 256  # decoder
   ndf2: 32  # decoder
   alpha: 1  # freedom of student T
