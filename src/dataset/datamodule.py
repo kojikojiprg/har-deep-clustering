@@ -40,6 +40,10 @@ class Datamodule(LightningDataModule):
     def n_samples_batch(self):
         return self._dataset.n_samples_batch
 
+    @property
+    def dataset(self):
+        return self._dataset
+
     def train_dataloader(self):
         return DataLoader(self._dataset, self._batch_size, shuffle=True, num_workers=8)
 

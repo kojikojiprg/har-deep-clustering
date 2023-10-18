@@ -17,8 +17,17 @@ class CollectiveActivityDataset(AbstractDataset):
         self.w = int(720 * resize_ratio)
         self.h = int(480 * resize_ratio)
         self._idx_ranges = None
+        self._clip_names = None
 
         self._create_dataset(dataset_dir, stage)
+
+    @property
+    def idx_ranges(self):
+        return self._idx_ranges
+
+    @property
+    def clip_names(self):
+        return self._clip_names
 
     def _create_dataset(self, dataset_dir, stage):
         clip_dirs = sorted(glob(os.path.join(dataset_dir, "*")))
@@ -60,11 +69,12 @@ class CollectiveActivityDataset(AbstractDataset):
                 stage_clip_names += list(clip_names)[:-test_length]
             else:
                 stage_clip_names += list(clip_names)[-test_length:]
+        self._clip_names = stage_clip_names
         return stage_clip_names
 
     def _load_frames(self, dataset_dir, clip_names):
         raw_frame_sizes = {}
-        for clip_name in tqdm(clip_names, ncols=100, desc="load frame"):
+        for clip_name in tqdm(clip_names, ncols=100, desc="frame"):
             frames = []
             img_paths = sorted(glob(os.path.join(dataset_dir, clip_name, "*.jpg")))
             for i, img_path in enumerate(tqdm(img_paths, ncols=100, leave=False)):
@@ -78,7 +88,7 @@ class CollectiveActivityDataset(AbstractDataset):
         return raw_frame_sizes
 
     def _load_opticalflows(self, dataset_dir, clip_names):
-        for clip_name in tqdm(clip_names, ncols=100, desc="load opticalflow"):
+        for clip_name in tqdm(clip_names, ncols=100, desc="flow"):
             flows = np.load(os.path.join(dataset_dir, clip_name, "flow.npy"))
             flows_resized = []
             for flow in tqdm(flows, ncols=100, leave=False):
@@ -154,7 +164,7 @@ class CollectiveActivityDataset(AbstractDataset):
         frames = frames.transpose(1, 0)
         flows = self._flows[video_idx][data_idx : data_idx + self._seq_len]
         flows = flows.transpose(1, 0)
-        bboxs = self._bboxs[video_idx][data_idx + self._seq_len]
+        bboxs = self._bboxs[video_idx][data_idx + self._seq_len - 1]
         # append dmy bboxs
         if len(bboxs) < self._n_samples_batch:
             diff_num = self._n_samples_batch - len(bboxs)
