@@ -19,14 +19,24 @@ class Datamodule(LightningDataModule):
     ):
         super().__init__()
         self._batch_size = batch_size
+        self._dataset_type = dataset_type
 
         self._dataset: Union[CollectiveActivityDataset, VolleyballDataset]
+        self._val_dataset: Union[CollectiveActivityDataset, VolleyballDataset]
         if dataset_type == "collective":
             self._dataset = CollectiveActivityDataset(
                 dataset_dir, seq_len, resize_ratio, stage
             )
+            if stage == "train":
+                self._val_dataset = CollectiveActivityDataset(
+                    dataset_dir, seq_len, resize_ratio, "validation"
+                )
         elif dataset_type == "volleyball":
             self._dataset = VolleyballDataset(dataset_dir, seq_len, resize_ratio, stage)
+            if stage == "train":
+                self._val_dataset = VolleyballDataset(
+                    dataset_dir, seq_len, resize_ratio, "validation"
+                )
         elif dataset_type == "video":
             pass
         else:
@@ -48,7 +58,9 @@ class Datamodule(LightningDataModule):
         return DataLoader(self._dataset, self._batch_size, shuffle=True, num_workers=8)
 
     def val_dataloader(self):
-        return DataLoader(self._dataset, self._batch_size, shuffle=False, num_workers=8)
+        return DataLoader(
+            self._val_dataset, self._batch_size, shuffle=False, num_workers=8
+        )
 
     def test_dataloader(self):
         return DataLoader(self._dataset, shuffle=False, num_workers=8)
