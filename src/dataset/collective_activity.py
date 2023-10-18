@@ -4,6 +4,7 @@ from glob import glob
 
 import cv2
 import numpy as np
+import torch
 from tqdm import tqdm
 
 sys.path.append("src")
@@ -15,6 +16,8 @@ class CollectiveActivityDataset(AbstractDataset):
         super().__init__(seq_len, resize_ratio)
         self.w = int(720 * resize_ratio)
         self.h = int(480 * resize_ratio)
+        self._idx_ranges = None
+
         self._create_dataset(dataset_dir, stage)
 
     def _create_dataset(self, dataset_dir, stage):
@@ -85,7 +88,7 @@ class CollectiveActivityDataset(AbstractDataset):
             del flows, flows_resized
 
     def _transform_frame_flow(self):
-        for i in range(len(self._frames)):
+        for i in tqdm(range(len(self._frames)), ncols=100, desc="transform"):
             self._frames[i] = super().transform_imgs(self._frames[i])
             self._flows[i] = super().transform_imgs(self._flows[i])
 
@@ -137,3 +140,26 @@ class CollectiveActivityDataset(AbstractDataset):
             n_start_idx = n_last_idx
 
         self._idx_ranges = np.array(idx_ranges).astype(int)
+
+    def __len__(self):
+        return self._idx_ranges[-1, 1]
+
+    def __getitem__(self, idx):
+        video_idx = np.where(
+            (self._idx_ranges[:, 0] <= idx) & (idx < self._idx_ranges[:, 1])
+        )[0].item()
+        data_idx = int(idx - self._idx_ranges[video_idx, 0])
+
+        frames = self._frames[video_idx][data_idx : data_idx + self._seq_len]
+        frames = frames.transpose(1, 0)
+        flows = self._flows[video_idx][data_idx : data_idx + self._seq_len]
+        flows = flows.transpose(1, 0)
+        bboxs = self._bboxs[video_idx][data_idx + self._seq_len]
+        # append dmy bboxs
+        if len(bboxs) < self._n_samples_batch:
+            diff_num = self._n_samples_batch - len(bboxs)
+            dmy_bboxs = [np.full((4,), np.nan) for _ in range(diff_num)]
+            bboxs = np.append(bboxs, dmy_bboxs, axis=0)
+        bboxs = torch.Tensor(bboxs)
+
+        return frames, flows, bboxs, idx
