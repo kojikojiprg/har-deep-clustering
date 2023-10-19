@@ -1,8 +1,8 @@
 batch_size: 1
 seq_len: 20
 resize_ratio: 0.5
-epochs: 200
-clustering_start_epoch: 100
+epochs: 150
+clustering_start_epoch: 50
 update_interval: 5
 accumulate_grad_batches: 64
 
@@ -27,4 +27,4 @@ clustering:
 
 optim:
   lr_rate_ae: 0.0001
-  lr_rate_cm: 0.00001
+  lr_rate_cm: 0.0001
