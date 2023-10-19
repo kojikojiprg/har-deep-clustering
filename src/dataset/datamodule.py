@@ -27,16 +27,16 @@ class Datamodule(LightningDataModule):
             self._dataset = CollectiveActivityDataset(
                 dataset_dir, seq_len, resize_ratio, stage
             )
-            if stage == "train":
-                self._val_dataset = CollectiveActivityDataset(
-                    dataset_dir, seq_len, resize_ratio, "validation"
-                )
+            # if stage == "train":
+            #     self._val_dataset = CollectiveActivityDataset(
+            #         dataset_dir, seq_len, resize_ratio, "validation"
+            #     )
         elif dataset_type == "volleyball":
             self._dataset = VolleyballDataset(dataset_dir, seq_len, resize_ratio, stage)
-            if stage == "train":
-                self._val_dataset = VolleyballDataset(
-                    dataset_dir, seq_len, resize_ratio, "validation"
-                )
+            # if stage == "train":
+            #     self._val_dataset = VolleyballDataset(
+            #         dataset_dir, seq_len, resize_ratio, "validation"
+            #     )
         elif dataset_type == "video":
             pass
         else:
