@@ -6,6 +6,7 @@ models/
 videos/
 notebooks/
 logs/
+images/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
