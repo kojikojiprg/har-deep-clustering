@@ -3,14 +3,18 @@ import os
 import sys
 from datetime import timedelta
 
+import torch
 from lightning.pytorch import Trainer
 from lightning.pytorch.loggers import TensorBoardLogger
 from lightning.pytorch.strategies.ddp import DDPStrategy
+from lightning.pytorch.strategies.fsdp import FSDPStrategy
 
 sys.path.append("src")
 from dataset import Datamodule
 from model import DeepClusteringModel
 from utils import file_io
+
+# torch._dynamo.config.suppress_errors = True
 
 
 def parser():
@@ -22,6 +26,7 @@ def parser():
     # optional
     parser.add_argument("--dataset_type", type=str, required=False, default=None)
     parser.add_argument(
+        "-mc",
         "--model_config_path",
         type=str,
         required=False,
@@ -62,7 +67,7 @@ def main():
         else:
             dataset_type = os.path.basename(dataset_dir)
     datamodule = Datamodule(
-        dataset_dir, batch_size, seq_len, resize_ratio, "train", dataset_type
+        dataset_dir, dataset_type, batch_size, seq_len, resize_ratio, "train"
     )
 
     # create model
@@ -72,18 +77,23 @@ def main():
     checkpoint_dir = os.path.join(checkpoint_dir, dataset_type)
     model = DeepClusteringModel(config, n_samples, n_samples_batch, checkpoint_dir)
 
+    # TODO
+    # model = torch.compile(model, dynamic=True)
+
     # training
-    print("=> training")
-    ddp = DDPStrategy(timeout=timedelta(seconds=3))
+    ddp = DDPStrategy(find_unused_parameters=True, timeout=timedelta(seconds=1800))
+    fsdp = FSDPStrategy(cpu_offload=True)
     trainer = Trainer(
         logger=TensorBoardLogger(log_dir, name=dataset_type),
         callbacks=model.callbacks,
         max_epochs=config.epochs,
-        accumulate_grad_batches=config.accumulate_grad_batches,
+        # accumulate_grad_batches=config.accumulate_grad_batches,
         accelerator="gpu",
         devices=gpu_ids,
         strategy=ddp,
+        # strategy=fsdp,
     )
+    print("=> training")
     trainer.fit(model, datamodule=datamodule)
 
     print("=> complete")
