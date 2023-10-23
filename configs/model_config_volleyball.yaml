@@ -1,9 +1,9 @@
 batch_size: 1
 seq_len: 20
 resize_ratio: 0.5
-epochs: 150
-clustering_start_epoch: 50
-update_interval: 5
+epochs: 200
+clustering_start_epoch: 101
+update_interval: 1
 accumulate_grad_batches: 64
 
 fake_size:  # fake frame and flow of autoencoder size
