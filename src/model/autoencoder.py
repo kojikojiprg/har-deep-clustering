@@ -63,31 +63,31 @@ class Decoder(nn.Module):
 
         self.net = nn.Sequential(
             # input is Z, going into a convolution
-            nn.ConvTranspose2d(480, ndf * 8, 4, 3, (2, 0), bias=False),
+            nn.ConvTranspose2d(480, ndf * 8, 4, 3, (0, 2), bias=False),
             nn.BatchNorm2d(ndf * 8),
             nn.LeakyReLU(0.1, True),
-            # state size. ``(ngf*8) x 12 x 16``
+            # state size. ``(ngf*8) x 16 x 12``
             nn.ConvTranspose2d(ndf * 8, ndf * 4, 4, 2, 1, bias=False),
             nn.BatchNorm2d(ndf * 4),
             nn.LeakyReLU(0.1, True),
-            # state size. ``(ngf*4) x 24 x 32``
+            # state size. ``(ngf*4) x 32 x 24``
             nn.ConvTranspose2d(ndf * 4, ndf * 2, 4, 2, 1, bias=False),
             nn.BatchNorm2d(ndf * 2),
             nn.LeakyReLU(0.1, True),
-            # state size. ``(ngf*2) x 48 x 64``
+            # state size. ``(ngf*2) x 64 x 48``
             nn.ConvTranspose2d(ndf * 2, ndf, 4, 2, 1, bias=False),
             nn.BatchNorm2d(ndf),
             nn.LeakyReLU(0.1, True),
-            # state size. ``(ngf) x 96 x 128``
+            # state size. ``(ngf) x 128 x 96``
             nn.ConvTranspose2d(ndf, self._out_channels, 4, 2, 1, bias=False),
             nn.Tanh(),
-            # state size. ``(nc) x 192 x 256``
+            # state size. ``(nc) x 256 x 192``
         )
 
     def forward(self, z):
         n = z.shape[0]
         out = self.net(z)
-        out = out.view(n, self._out_channels, 192, 256)
+        out = out.view(n, self._out_channels, self._out_h, self._out_w)
         # frames = out[:, :3]
         # flows = out[:, 3:]
         return out[:, :3], out[:, 3:]
@@ -107,7 +107,7 @@ class Autoencoder(nn.Module):
         b, n = bboxs.shape[:2]
         c, sy, sx = z.shape[1:]
         z = z.view(b, n, c, sy, sx)
-        frames_d = frames_d.view(b, n, 3, 192, 256)
-        flows_d = flows_d.view(b, n, 2, 192, 256)
+        frames_d = frames_d.view(b, n, 3, 256, 192)
+        flows_d = flows_d.view(b, n, 2, 256, 192)
 
         return z, frames_d, flows_d

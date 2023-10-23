@@ -18,8 +18,7 @@ class ClusteringModule(nn.Module):
                 for _ in range(self._n_clusters)
             ]
         )
-        self._target_distribution = None
-        self.clear_target_disribution()
+        self._target_distribution = torch.zeros((self._n_samples, self._n_clusters))
 
         self._emb = nn.Sequential(
             nn.Linear(480 * 5 * 5, cfg.ndf1),
@@ -67,9 +66,6 @@ class ClusteringModule(nn.Module):
         s = s_tmp
 
         return s
-
-    def clear_target_disribution(self):
-        self._target_distribution = torch.zeros((self._n_samples, self._n_clusters))
 
     def update_target_distribution(self, s, batch_idxs):
         sample_nums = s.shape[1]
