@@ -7,6 +7,8 @@ videos/
 notebooks/
 logs/
 images/
+models_backup/
+logs_backup/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
