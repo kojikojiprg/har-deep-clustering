@@ -1,6 +1,7 @@
 import os
 import sys
 from glob import glob
+from types import SimpleNamespace
 
 import cv2
 import numpy as np
@@ -12,10 +13,10 @@ from dataset.abstract_dataset import AbstractDataset
 
 
 class CollectiveActivityDataset(AbstractDataset):
-    def __init__(self, dataset_dir: str, seq_len: int, resize_ratio: float, stage: str):
-        super().__init__(seq_len, resize_ratio)
-        self.w = int(720 * resize_ratio)
-        self.h = int(480 * resize_ratio)
+    def __init__(self, dataset_dir: str, cfg: SimpleNamespace, stage: str):
+        super().__init__(cfg.seq_len, cfg.resize_ratio)
+        self.w = cfg.img_size.w
+        self.h = cfg.img_size.h
         self._target_idxs = None
         self._clip_names = None
 

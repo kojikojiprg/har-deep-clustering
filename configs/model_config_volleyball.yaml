@@ -6,25 +6,26 @@ clustering_start_epoch: 101
 update_interval: 1
 accumulate_grad_batches: 64
 
-fake_size:  # fake frame and flow of autoencoder size
-  w: 192
-  h: 256
+img_size:
+  w: 1280
+  h: 720
 
 autoencoder:
   i3d:
     final_endpoint: Mixed_3c
-  roialign:
-    output_size: 5
-    spatial_scale: 0.125
-    aligned: False
-  ndf: 64
+  ndf: 32
 
 clustering:
   n_clusters: 9  # waiting, setting, digging, failing, spiking, blocking, jumping, moving, standing
   ndf1: 256  # decoder
   ndf2: 32  # decoder
   alpha: 1  # freedom of student T
+  roialign:
+    output_size: 5
+    spatial_scale: 0.125
+    aligned: True
 
 optim:
   lr_rate_ae: 0.0001
   lr_rate_cm: 0.0001
+  lmd_cm: 10

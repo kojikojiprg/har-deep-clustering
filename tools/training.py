@@ -3,11 +3,10 @@ import os
 import sys
 from datetime import timedelta
 
-import torch
 from lightning.pytorch import Trainer
 from lightning.pytorch.loggers import TensorBoardLogger
 from lightning.pytorch.strategies.ddp import DDPStrategy
-from lightning.pytorch.strategies.fsdp import FSDPStrategy
+# from lightning.pytorch.strategies.fsdp import FSDPStrategy
 
 sys.path.append("src")
 from dataset import Datamodule
@@ -55,9 +54,6 @@ def main():
 
     # get config
     config = file_io.get_config(model_config_path)
-    batch_size = config.batch_size
-    seq_len = config.seq_len
-    resize_ratio = config.resize_ratio
 
     # create dataset
     print(f"=> creating dataset from {dataset_dir}")
@@ -67,7 +63,7 @@ def main():
         else:
             dataset_type = os.path.basename(dataset_dir)
     datamodule = Datamodule(
-        dataset_dir, dataset_type, batch_size, seq_len, resize_ratio, "train"
+        dataset_dir, dataset_type, config, "train"
     )
 
     # create model
@@ -82,7 +78,7 @@ def main():
 
     # training
     ddp = DDPStrategy(find_unused_parameters=True, timeout=timedelta(seconds=1800))
-    fsdp = FSDPStrategy(cpu_offload=True)
+    # fsdp = FSDPStrategy(cpu_offload=True)
     trainer = Trainer(
         logger=TensorBoardLogger(log_dir, name=dataset_type),
         callbacks=model.callbacks,

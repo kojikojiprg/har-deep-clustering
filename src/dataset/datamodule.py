@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from typing import Union
 
 from lightning.pytorch import LightningDataModule
@@ -12,27 +13,23 @@ class Datamodule(LightningDataModule):
         self,
         dataset_dir: str,
         dataset_type: str,
-        batch_size: int,
-        seq_len: int,
-        resize_ratio: float,
+        cfg: SimpleNamespace,
         stage: str,
     ):
         super().__init__()
-        self._batch_size = batch_size
         self._dataset_type = dataset_type
+        self._batch_size = cfg.batch_size
 
         self._dataset: Union[CollectiveActivityDataset, VolleyballDataset]
         self._val_dataset: Union[CollectiveActivityDataset, VolleyballDataset]
         if dataset_type == "collective":
-            self._dataset = CollectiveActivityDataset(
-                dataset_dir, seq_len, resize_ratio, stage
-            )
+            self._dataset = CollectiveActivityDataset(dataset_dir, cfg, stage)
             # if stage == "train":
             #     self._val_dataset = CollectiveActivityDataset(
-            #         dataset_dir, seq_len, resize_ratio, "validation"
+            #         dataset_dir, cfg, "validation"
             #     )
         elif dataset_type == "volleyball":
-            self._dataset = VolleyballDataset(dataset_dir, seq_len, resize_ratio, stage)
+            self._dataset = VolleyballDataset(dataset_dir, cfg, stage)
             # if stage == "train":
             #     self._val_dataset = VolleyballDataset(
             #         dataset_dir, seq_len, resize_ratio, "validation"

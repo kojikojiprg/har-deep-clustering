@@ -5,7 +5,6 @@ import cv2
 import numpy as np
 import torch
 import torch.nn as nn
-import torchvision.transforms.functional as F
 from lightning.pytorch import LightningModule
 from lightning.pytorch.callbacks import ModelCheckpoint
 from numpy.typing import NDArray
@@ -30,8 +29,10 @@ class DeepClusteringModel(LightningModule):
         self._n_accumulate = cfg.accumulate_grad_batches
         self._n_samples = n_samples
         self._n_samples_batch = n_samples_batch
+        self._lmd_cm = cfg.optim.lmd_cm
 
-        self._ae = Autoencoder(cfg)
+        self._ae_frame = Autoencoder(cfg, 3)
+        self._ae_flow = Autoencoder(cfg, 2)
         self._cm = ClusteringModule(cfg, n_samples, n_samples_batch)
 
         self._lr = nn.MSELoss()
@@ -73,50 +74,34 @@ class DeepClusteringModel(LightningModule):
 
     def training_step(self, batch, batch_idx):
         frames, flows, bboxs, data_idxs = batch
-        optim_ae, optim_cm = self.optimizers()
-        sch_ae, sch_cm = self.lr_schedulers()
-
-        # get constants
-        batch_size, _, seq_len = frames.shape[:3]
-        w = self._cfg.fake_size.w
-        h = self._cfg.fake_size.h
+        optim_ae_frame, optim_ae_flow, optim_cm = self.optimizers()
+        sch_ae_frame, sch_ae_flow, sch_cm = self.lr_schedulers()
 
         # train autoencoder
-        z, frames_out, flows_out = self._ae(frames, flows, bboxs)
+        z_frame, fake_frames = self._ae_frame(frames)
+        z_flow, fake_flows = self._ae_flow(flows)
 
         # calc loss autoencoder
-        lr_total = 0
-        for i in range(batch_size):
-            for j in range(self._n_samples_batch):
-                try:
-                    bx = bboxs[i, j].cpu().numpy()
-                except IndexError:
-                    continue  # last batch of epoch
-                if np.any(np.isnan(bx)):
-                    continue
-                x1, y1, x2, y2 = bx.astype(int)
-                frame_bbox = frames[i, :, seq_len - 1, y1:y2, x1:x2]
-                flow_bbox = flows[i, :, seq_len - 1, y1:y2, x1:x2]
-                frame_bbox = F.resize(frame_bbox, (h, w), antialias=True)
-                flow_bbox = F.resize(flow_bbox, (h, w), antialias=True)
-
-                lr_total = lr_total + self._lr(frames_out[i, j], frame_bbox)
-                lr_total = lr_total + self._lr(flows_out[i, j], flow_bbox)
-        lr_total = lr_total / self._n_accumulate
-        if np.all(np.isnan(bboxs.cpu().numpy())):
-            # all of bboxs are nan, backward zero
-            lr_total = self._lr(frames_out, frames_out) + self._lr(flows_out, flows_out)
+        lr_frame = self._lr(frames[:, :, -1], fake_frames) / self._n_accumulate
+        lr_flow = self._lr(flows[:, :, -1], fake_flows) / self._n_accumulate
 
         # step autoencoder optimizer
-        self.manual_backward(lr_total)
+        self.manual_backward(lr_frame)
         if (batch_idx + 1) % self._n_accumulate == 0:
-            optim_ae.step()
-            optim_ae.zero_grad()
-            sch_ae.step()
+            optim_ae_frame.step()
+            optim_ae_frame.zero_grad()
+            sch_ae_frame.step()
+
+        self.manual_backward(lr_flow)
+        if (batch_idx + 1) % self._n_accumulate == 0:
+            optim_ae_flow.step()
+            optim_ae_flow.zero_grad()
+            sch_ae_flow.step()
 
         # train clustering
         if self.current_epoch + 1 >= self._cfg.clustering_start_epoch:
-            z, s, c = self._cm(z.detach())
+            z = z_frame.detach() + z_flow.detach()
+            z, s, c = self._cm(z, bboxs)
 
             # update clustering label
             # for i, data_idx in enumerate(data_idxs.cpu()):
@@ -142,7 +127,7 @@ class DeepClusteringModel(LightningModule):
                 ]
                 tmp_s = s[i]
                 lc_total = lc_total + self._lc(tmp_s.log(), tmp_target)
-            lc_total = lc_total / self._n_accumulate
+            lc_total = lc_total / self._n_accumulate * self._lmd_cm
 
             # step clustering optimizer
             self.manual_backward(lc_total)
@@ -153,110 +138,69 @@ class DeepClusteringModel(LightningModule):
         else:
             lc_total = torch.nan
 
-        self.log_dict({"lr": lr_total, "lc": lc_total}, prog_bar=True, on_epoch=True)
+        self.log_dict(
+            {"lr_frame": lr_frame, "lr_flow": lr_flow, "lc": lc_total},
+            prog_bar=True,
+            on_epoch=True,
+        )
 
     def validation_step(self, batch, batch_idx):
         if batch_idx >= 10:
             return
         frames, flows, bboxs, data_idxs = batch
-        optim_ae, optim_cm = self.optimizers()
-        sch_ae, sch_cm = self.lr_schedulers()
-
-        # get constants
-        batch_size, _, seq_len = frames.shape[:3]
-        w = self._cfg.fake_size.w
-        h = self._cfg.fake_size.h
 
         # train autoencoder
-        z, frames_out, flows_out = self._ae(frames, flows, bboxs)
+        z, frames_fake = self._ae_frame(frames)
 
         # save fig
-        bx = bboxs[0, 0].cpu().numpy()
-        x1, y1, x2, y2 = bx.astype(int)
-        frame_bbox = frames[0, :, seq_len - 1, y1:y2, x1:x2]
-        frame_bbox = F.resize(frame_bbox, (h, w), antialias=True)
-        fin = frame_bbox.permute(1, 2, 0).detach().cpu().numpy()
-        fout = frames_out[0, 0].permute(1, 2, 0).cpu().numpy()
-        fin = ((fin + 1) / 2 * 255).astype(np.uint8)
-        fout = ((fout + 1) / 2 * 255).astype(np.uint8)
-        cv2.imwrite(f"images/batch{batch_idx}_in.jpg", fin)
-        cv2.imwrite(f"images/batch{batch_idx}_out.jpg", fout)
+        frames = frames[:, :, -1]
+        frames = frames.permute(0, 2, 3, 1).detach().cpu().numpy()
+        frames_fake = frames_fake.permute(0, 2, 3, 1).detach().cpu().numpy()
+        frames = ((frames + 1) / 2 * 255).astype(np.uint8)
+        frames_fake = ((frames_fake + 1) / 2 * 255).astype(np.uint8)
+        cv2.imwrite(f"images/batch{batch_idx}_in.jpg", frames[0])
+        cv2.imwrite(f"images/batch{batch_idx}_out.jpg", frames_fake[0])
 
-        # calc loss autoencoder
-        # lr_total = 0
-        # for i in range(batch_size):
-        #     for j in range(self._n_samples_batch):
-        #         try:
-        #             bx = bboxs[i, j].cpu().numpy()
-        #         except IndexError:
-        #             continue  # last batch of epoch
-        #         if np.any(np.isnan(bx)):
-        #             continue
-        #         x1, y1, x2, y2 = bx.astype(int)
-        #         frame_bbox = frames[i, :, seq_len - 1, y1:y2, x1:x2]
-        #         flow_bbox = flows[i, :, seq_len - 1, y1:y2, x1:x2]
-        #         frame_bbox = F.resize(frame_bbox, (w, h), antialias=True)
-        #         flow_bbox = F.resize(flow_bbox, (w, h), antialias=True)
+    # def predict_step(self, batch, batch_idx):
+    #     frames, flows, bboxs, data_idxs = batch
+    #     batch_size = frames.shape[0]
 
-        #         lr_total = lr_total + self._lr(frames_out[i, j], frame_bbox)
-        #         lr_total = lr_total + self._lr(flows_out[i, j], flow_bbox)
-    #     lr_total = lr_total / self._n_accumulate
-    #     if np.all(np.isnan(bboxs.cpu().numpy())):
-    #         # all of bboxs are nan, backward zero
-    #         lr_total = self._lr(frames_out, frames_out) + self._lr(flows_out, flows_out)
+    #     z, frames_out, flows_out = self._ae(frames, flows, bboxs)
+    #     z, s, c = self._cm(z.detach())
+    #     preds = []
+    #     for i in range(batch_size):
+    #         for j in range(self._n_samples_batch):
+    #             data = {
+    #                 "sample_num": (data_idxs[i] + j).item(),
+    #                 "z": z[i, j].cpu().numpy(),
+    #                 "c": c[i, j].item(),
+    #             }
+    #             preds.append(data)
 
-    #     # train clustering
-    #     if self.current_epoch + 1 >= self._cfg.clustering_start_epoch:
-    #         z, s, c = self._cm(z.detach())
-    #         if (
-    #             self.current_epoch % self._update_interval == 0  # periodical update
-    #             or self.current_epoch == self._cfg.epochs - 1  # last epoch
-    #         ):
-    #             # update target
-    #             self._cm.update_target_distribution(s, data_idxs)
-
-    #         # calc loss clustering
-    #         lc_total = 0
-    #         for i, data_idx in enumerate(data_idxs):
-    #             idx = data_idx * self._n_samples_batch
-    #             tmp_target = self._cm.target_distribution[
-    #                 idx : idx + self._n_samples_batch
-    #             ]
-    #             tmp_s = s[i]
-    #             lc_total = lc_total + self._lc(tmp_s.log(), tmp_target)
-    #         lc_total = lc_total / self._n_accumulate
-    #     else:
-    #         lc_total = torch.nan
-
-    #     self.log_dict({"lr_v": lr_total, "lc_v": lc_total}, prog_bar=True)
-
-    def predict_step(self, batch, batch_idx):
-        frames, flows, bboxs, data_idxs = batch
-        batch_size = frames.shape[0]
-
-        z, frames_out, flows_out = self._ae(frames, flows, bboxs)
-        z, s, c = self._cm(z.detach())
-        preds = []
-        for i in range(batch_size):
-            for j in range(self._n_samples_batch):
-                data = {
-                    "sample_num": (data_idxs[i] + j).item(),
-                    "z": z[i, j].cpu().numpy(),
-                    "c": c[i, j].item(),
-                }
-                preds.append(data)
-
-        return preds
+    #     return preds
 
     def configure_optimizers(self):
-        optim_ae = torch.optim.Adam(self._ae.parameters(), self._cfg.optim.lr_rate_ae)
+        # optimizer
+        optim_ae_frame = torch.optim.Adam(
+            self._ae_frame.parameters(), self._cfg.optim.lr_rate_ae
+        )
+        optim_ae_flow = torch.optim.Adam(
+            self._ae_flow.parameters(), self._cfg.optim.lr_rate_ae
+        )
         optim_cm = torch.optim.Adam(self._cm.parameters(), self._cfg.optim.lr_rate_cm)
 
+        # scheduler
         step_size = (self._cfg.epochs - self._cfg.clustering_start_epoch + 1) // 2
-        sch_ae = torch.optim.lr_scheduler.StepLR(
-            optim_ae, step_size=step_size, gamma=0.1
+        sch_ae_frame = torch.optim.lr_scheduler.StepLR(
+            optim_ae_frame, step_size=step_size, gamma=0.1
+        )
+        sch_ae_flow = torch.optim.lr_scheduler.StepLR(
+            optim_ae_flow, step_size=step_size, gamma=0.1
         )
         sch_cm = torch.optim.lr_scheduler.StepLR(
             optim_cm, step_size=step_size, gamma=0.1
         )
-        return [optim_ae, optim_cm], [sch_ae, sch_cm]
+        return (
+            [optim_ae_frame, optim_ae_flow, optim_cm],
+            [sch_ae_frame, sch_ae_flow, sch_cm],
+        )
