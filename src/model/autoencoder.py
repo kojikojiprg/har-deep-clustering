@@ -25,29 +25,30 @@ class Decoder(nn.Module):
         self._out_channels = out_channels
 
         self.net = nn.Sequential(
+            # TODO: setup network automatically
             # input is Z, going into a convolution
-            nn.ConvTranspose2d(480, ndf * 4, 1, 1, 0, bias=False),
+            nn.ConvTranspose2d(480, ndf * 8, 1, 1, 0, bias=False),
+            nn.BatchNorm2d(ndf * 8),
+            nn.LeakyReLU(0.1, True),
+            nn.ConvTranspose2d(ndf * 8, ndf * 4, 1, 1, 0, bias=False),
             nn.BatchNorm2d(ndf * 4),
             nn.LeakyReLU(0.1, True),
-            # state size. ``(ngf*4) x h*2 x w*2``
+            # state size. ``(ngf*4) x h*1 x w*1``
             nn.ConvTranspose2d(ndf * 4, ndf * 2, 4, 2, 1, bias=False),
             nn.BatchNorm2d(ndf * 2),
             nn.LeakyReLU(0.1, True),
-            # state size. ``(ngf*2) x h*4 x w*4``
+            # state size. ``(ngf*2) x h*2 x w*2``
             nn.ConvTranspose2d(ndf * 2, ndf, 4, 2, 1, bias=False),
             nn.BatchNorm2d(ndf),
             nn.LeakyReLU(0.1, True),
-            # state size. ``(ngf) x h*8 x w*8``
+            # state size. ``(ngf) x h*4 x w*4``
             nn.ConvTranspose2d(ndf, out_channels, 4, 2, 1, bias=False),
             nn.Tanh(),
-            # state size. ``(nc) x h*16 x w*16``
+            # state size. ``(nc) x h*8 x w*8``
         )
 
     def forward(self, z):
-        # n = z.shape[0]
-        out = self.net(z)
-        # out = out.view(n, self._out_channels, self._out_h, self._out_w)
-        return out
+        return self.net(z)
 
 
 class Autoencoder(nn.Module):

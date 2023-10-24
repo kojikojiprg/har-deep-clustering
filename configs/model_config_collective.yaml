@@ -13,7 +13,7 @@ img_size:
 autoencoder:
   i3d:
     final_endpoint: Mixed_3c
-  ndf: 32
+  ndf: 64
 
 clustering:
   n_clusters: 6  # nonaction, crossing, waiting, queueing, walking, talking
