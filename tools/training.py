@@ -77,16 +77,16 @@ def main():
     # model = torch.compile(model, dynamic=True)
 
     # training
-    ddp = DDPStrategy(find_unused_parameters=True, timeout=timedelta(seconds=1800))
+    # ddp = DDPStrategy(find_unused_parameters=True, timeout=timedelta(seconds=1800))
     # fsdp = FSDPStrategy(cpu_offload=True)
     trainer = Trainer(
         logger=TensorBoardLogger(log_dir, name=dataset_type),
         callbacks=model.callbacks,
         max_epochs=config.epochs,
-        # accumulate_grad_batches=config.accumulate_grad_batches,
+        accumulate_grad_batches=config.accumulate_grad_batches,
         accelerator="gpu",
         devices=gpu_ids,
-        strategy=ddp,
+        strategy="ddp",
         # strategy=fsdp,
     )
     print("=> training")
