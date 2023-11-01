@@ -9,6 +9,7 @@ logs/
 images/
 models_backup/
 logs_backup/
+checkpoints/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
