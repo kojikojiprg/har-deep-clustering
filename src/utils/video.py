@@ -91,3 +91,46 @@ def concat_frames(frame1: NDArray, frame2: NDArray) -> NDArray:
 def get_concat_frame_size(frame: NDArray, field: NDArray) -> Tuple[int, ...]:
     cmb_img = concat_frames(frame, field)
     return cmb_img.shape[1::-1]
+
+
+def _adjust_ang(ang_min, ang_max):
+    unique_ang_min = ang_min
+    unique_ang_max = ang_max
+    unique_ang_min %= 360
+    unique_ang_max %= 360
+    if unique_ang_min >= unique_ang_max:
+        unique_ang_max += 360
+    return unique_ang_min, unique_ang_max
+
+
+def _any_angle_only(mag, ang, ang_min, ang_max):
+    any_mag = np.copy(mag)
+    any_ang = np.copy(ang)
+    ang_min %= 360
+    ang_max %= 360
+    if ang_min < ang_max:
+        any_mag[(ang < ang_min) | (ang_max < ang)] = np.nan
+        any_ang[(ang < ang_min) | (ang_max < ang)] = np.nan
+    else:
+        any_mag[(ang_max < ang) & (ang < ang_min)] = np.nan
+        any_ang[(ang_max < ang) & (ang < ang_min)] = np.nan
+        any_ang[ang <= ang_max] += 360
+    return any_mag, any_ang
+
+
+def flow_to_rgb(flow, frame_size):
+    # 角度範囲のパラメータ
+    ang_min = 0
+    ang_max = 360
+    _ang_min, _ang_max = _adjust_ang(ang_min, ang_max)  # 角度の表現を統一する
+
+    # HSV色空間の配列に入れる
+    hsv = np.zeros(frame_size, dtype=np.uint8)
+    mag, ang = cv2.cartToPolar(flow[..., 0], flow[..., 1], angleInDegrees=True)
+    any_mag, any_ang = _any_angle_only(mag, ang, ang_min, ang_max)
+    hsv[..., 0] = 180 * (any_ang - _ang_min) / (_ang_max - _ang_min)
+    hsv[..., 1] = 255
+    hsv[..., 2] = cv2.normalize(any_mag, None, 0, 255, cv2.NORM_MINMAX)
+    flow_rgb = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+
+    return flow_rgb
