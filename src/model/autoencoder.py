@@ -26,25 +26,29 @@ class Decoder(nn.Module):
 
         self.net = nn.Sequential(
             # TODO: setup network automatically
-            # input is Z, going into a convolution
-            nn.ConvTranspose2d(480, ndf * 8, 1, 1, 0, bias=False),
+            nn.ConvTranspose2d(480, ndf * 8, 4, 2, 1, bias=False),
+            # nn.ConvTranspose2d(480, ndf * 8, 1, 1, 0, bias=False),
             nn.BatchNorm2d(ndf * 8),
             nn.LeakyReLU(0.1, True),
-            nn.ConvTranspose2d(ndf * 8, ndf * 4, 1, 1, 0, bias=False),
+            # (ndf*8) x h*2 x w*2
+            nn.ConvTranspose2d(ndf * 8, ndf * 4, 4, 2, 1, bias=False),
+            # nn.ConvTranspose2d(ndf * 8, ndf * 4, 1, 1, 0, bias=False),
             nn.BatchNorm2d(ndf * 4),
             nn.LeakyReLU(0.1, True),
-            # state size. ``(ngf*4) x h*1 x w*1``
+            # (ndf*4) x h*4 x w*4
             nn.ConvTranspose2d(ndf * 4, ndf * 2, 4, 2, 1, bias=False),
             nn.BatchNorm2d(ndf * 2),
             nn.LeakyReLU(0.1, True),
-            # state size. ``(ngf*2) x h*2 x w*2``
-            nn.ConvTranspose2d(ndf * 2, ndf, 4, 2, 1, bias=False),
-            nn.BatchNorm2d(ndf),
+            # (ndf*2) x h*8 x w*8
+            nn.ConvTranspose2d(ndf * 2, ndf * 1, 1, 1, 0, bias=False),
+            # nn.ConvTranspose2d(ndf * 2, ndf * 1, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(ndf * 1),
             nn.LeakyReLU(0.1, True),
-            # state size. ``(ngf) x h*4 x w*4``
-            nn.ConvTranspose2d(ndf, out_channels, 4, 2, 1, bias=False),
+            # (ndf*1) x h*8 x w*8
+            nn.ConvTranspose2d(ndf * 1, out_channels, 1, 1, 0, bias=False),
+            # nn.ConvTranspose2d(ndf * 1, out_channels, 4, 2, 1, bias=False),
             nn.Tanh(),
-            # state size. ``(nc) x h*8 x w*8``
+            # (out_chennels) x h*8 x w*8``
         )
 
     def forward(self, z):
@@ -56,6 +60,14 @@ class Autoencoder(nn.Module):
         super().__init__()
         self._e = Encoder(cfg, n_channels)
         self._d = Decoder(cfg, n_channels)
+
+    @property
+    def E(self):
+        return self._e
+
+    @property
+    def D(self):
+        return self._d
 
     def forward(self, imgs):
         z = self._e(imgs)

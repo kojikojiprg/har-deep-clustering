@@ -26,12 +26,13 @@ class ClusteringModule(nn.Module):
         )
         self._target_distribution = torch.zeros((self._n_samples, self._n_clusters))
 
+        os = cfg.roialign.output_size
         self._emb = nn.Sequential(
-            nn.Linear(480 * 5 * 5, cfg.ndf1),
+            nn.Linear(480 * os * os, cfg.ndf1),
             nn.Linear(cfg.ndf1, cfg.ndf2),
         )
         self._roi_align = RoIAlign(
-            cfg.roialign.output_size,
+            os,
             cfg.roialign.spatial_scale,
             1,
             cfg.roialign.aligned,
@@ -80,25 +81,25 @@ class ClusteringModule(nn.Module):
         return rois
 
     def _student_t(self, z):
-        b, sn = z.shape[:2]
-        norm = torch.zeros((b, sn, self._n_clusters), dtype=torch.float32)
+        bn, sn = z.shape[:2]
+        norm = torch.zeros((bn, sn, self._n_clusters), dtype=torch.float32)
         norm_tmp = torch.zeros_like(norm)
-        for i in range(b):
+        for b in range(bn):
             for j in range(self._n_clusters):
-                diff = (z[i] - self._centroids[j]).clone()
-                norm_tmp[i, :, j] = torch.linalg.vector_norm(diff, dim=1)
+                diff = (z[b] - self._centroids[j]).clone()
+                norm_tmp[b, :, j] = torch.linalg.vector_norm(diff, dim=1)
         norm = norm_tmp
 
-        s = torch.zeros((b, sn, self._n_clusters), dtype=torch.float32)
+        s = torch.zeros((bn, sn, self._n_clusters), dtype=torch.float32)
         s_tmp = torch.zeros_like(s)
-        for i in range(b):
-            for j in range(sn):
-                s_tmp[i, j] = ((1 + norm[i, j]) / self._t_alpha) ** -(
+        for b in range(bn):
+            for i in range(sn):
+                s_tmp[b, i] = ((1 + norm[b, i]) / self._t_alpha) ** -(
                     (self._t_alpha + 1) / 2
                 )
-            s_tmp_t = s_tmp[i].T.detach()
-            s_tmp_sum = s_tmp[i].sum(dim=1).detach()
-            s_tmp[i] = (s_tmp_t / s_tmp_sum).T
+            s_tmp_t = s_tmp[b].T.detach()
+            s_tmp_sum = s_tmp[b].sum(dim=1).detach()
+            s_tmp[b] = (s_tmp_t / s_tmp_sum).T
         s = s_tmp
 
         return s
