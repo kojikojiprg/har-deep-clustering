@@ -118,14 +118,14 @@ def _any_angle_only(mag, ang, ang_min, ang_max):
     return any_mag, any_ang
 
 
-def flow_to_rgb(flow, frame_size):
+def flow_to_rgb(flow):
     # 角度範囲のパラメータ
     ang_min = 0
     ang_max = 360
     _ang_min, _ang_max = _adjust_ang(ang_min, ang_max)  # 角度の表現を統一する
 
     # HSV色空間の配列に入れる
-    hsv = np.zeros(frame_size, dtype=np.uint8)
+    hsv = np.zeros((flow.shape[0], flow.shape[1], 3), dtype=np.uint8)
     mag, ang = cv2.cartToPolar(flow[..., 0], flow[..., 1], angleInDegrees=True)
     any_mag, any_ang = _any_angle_only(mag, ang, ang_min, ang_max)
     hsv[..., 0] = 180 * (any_ang - _ang_min) / (_ang_max - _ang_min)
