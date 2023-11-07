@@ -1,5 +1,6 @@
 import os
 import sys
+from types import SimpleNamespace
 from glob import glob
 
 import cv2
@@ -13,10 +14,10 @@ from utils import json_handler, video
 
 
 class VideoDataset(AbstractDataset):
-    def __init__(self, dataset_dir: str, seq_len: int, resize_ratio: float, stage: str):
-        super().__init__(seq_len, resize_ratio)
-        self.w = int(1280 * resize_ratio)
-        self.h = int(940 * resize_ratio)
+    def __init__(self, dataset_dir: str, cfg: SimpleNamespace, stage: str):
+        super().__init__(cfg.seq_len, cfg.resize_ratio)
+        self.w = int(cfg.img_size.w * cfg.resize_ratio)
+        self.h = int(cfg.img_size.h * cfg.resize_ratio)
         self._idx_ranges = []
         self._create_dataset(dataset_dir, stage)
 

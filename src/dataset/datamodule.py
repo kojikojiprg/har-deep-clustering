@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader, Subset
 
 from .collective_activity import CollectiveActivityDataset
 from .volleyball import VolleyballDataset
+from .video import VideoDataset
 
 
 class Datamodule(LightningDataModule):
@@ -25,24 +26,30 @@ class Datamodule(LightningDataModule):
         self._val_dataset: Union[CollectiveActivityDataset, VolleyballDataset, Subset]
         if dataset_type == "collective":
             self._dataset = CollectiveActivityDataset(dataset_dir, cfg, stage)
-            self._val_dataset = Subset(
-                self._dataset, np.random.randint(0, len(self._dataset), 10).tolist()
-            )
+            if stage == "train":
+                self._val_dataset = Subset(
+                    self._dataset, np.random.randint(0, len(self._dataset), 10).tolist()
+                )
             # if stage == "train":
             #     self._val_dataset = CollectiveActivityDataset(
             #         dataset_dir, cfg, "validation"
             #     )
         elif dataset_type == "volleyball":
             self._dataset = VolleyballDataset(dataset_dir, cfg, stage)
-            self._val_dataset = Subset(
-                self._dataset, np.random.randint(0, len(self._dataset), 10).tolist()
-            )
+            if stage == "train":
+                self._val_dataset = Subset(
+                    self._dataset, np.random.randint(0, len(self._dataset), 10).tolist()
+                )
             # if stage == "train":
             #     self._val_dataset = VolleyballDataset(
             #         dataset_dir, seq_len, resize_ratio, "validation"
             #     )
         elif dataset_type == "video":
-            pass
+            self._dataset = VideoDataset(dataset_dir, cfg, stage)
+            if stage == "train":
+                self._val_dataset = Subset(
+                    self._dataset, np.random.randint(0, len(self._dataset), 10).tolist()
+                )
         else:
             raise KeyError
 
