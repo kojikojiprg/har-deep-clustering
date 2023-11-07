@@ -23,7 +23,7 @@ def parser():
     parser.add_argument("dataset_dir", type=str)
 
     # optional
-    parser.add_argument("--dataset_type", type=str, required=False, default=None)
+    parser.add_argument("-dt", "--dataset_type", type=str, required=False, default=None)
     parser.add_argument(
         "-mc",
         "--model_config_path",
