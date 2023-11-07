@@ -9,89 +9,50 @@ from tqdm import tqdm
 
 sys.path.append("src")
 from dataset.abstract_dataset import AbstractDataset
-
-VALIDATION_SET = [0, 2, 8, 12, 17, 19, 24, 26, 27, 28, 30, 33, 46, 49, 51]
-TEST_SET = [4, 5, 9, 11, 14, 20, 21, 25, 29, 34, 35, 37, 43, 44, 45, 47]
-TRAIN_SET = [i for i in range(55) if i not in VALIDATION_SET and i not in TEST_SET]
+from utils import json_handler, video
 
 
 class VideoDataset(AbstractDataset):
     def __init__(self, dataset_dir: str, seq_len: int, resize_ratio: float, stage: str):
         super().__init__(seq_len, resize_ratio)
         self.w = int(1280 * resize_ratio)
-        self.h = int(720 * resize_ratio)
+        self.h = int(940 * resize_ratio)
+        self._idx_ranges = []
         self._create_dataset(dataset_dir, stage)
 
     def _create_dataset(self, dataset_dir, stage):
-        if stage == "train":
-            video_nums = TRAIN_SET
-        elif stage == "validation":
-            video_nums = VALIDATION_SET
-        elif stage == "test":
-            video_nums = TEST_SET
-        else:
-            raise KeyError
-        video_dirs = sorted(glob(os.path.join(dataset_dir, "*/")))
-        clip_dirs = []
-        for video_dir in video_dirs:
-            if int(os.path.basename(os.path.dirname(video_dir))) in video_nums:
-                clip_dirs += sorted(glob(os.path.join(video_dir, "*/")))
-
-        # bbox
-        annotations = self._load_annotations(video_dirs, clip_dirs)
+        clip_dirs = sorted(glob(os.path.join(dataset_dir, "*/")))
+        clip_paths = sorted(glob(os.path.join(dataset_dir, "*.mp4")))
 
         # frame and flow
-        frame_sizes = self._load_frames(clip_dirs, list(annotations.keys()))
+        frame_size, frame_lengths = self._load_frames(clip_paths)
         self._load_opticalflows(clip_dirs)
         self._transform_frame_flow()
 
-        self._extract_bbox(annotations, frame_sizes)
+        # bbox
+        self._load_bboxs(clip_dirs, frame_size)
 
-    def _load_annotations(self, video_dirs, clip_dirs):
-        ann_txts = {}
-        for video_dir in video_dirs:
-            # load from txt file
-            ann_path = os.path.join(video_dir, "annotations.txt")
-            with open(ann_path, "r") as f:
-                txt = f.readlines()
-                txt = [line.replace("\n", "").split(" ") for line in txt]
-            video_num = int(os.path.basename(os.path.dirname(video_dir)))
-            ann_txts[video_num] = txt
+        self._calc_idx_ranges(frame_lengths)
 
-        annotations = {}
-        for clip_dir in clip_dirs:
-            video_num, frame_num = clip_dir.split("/")[-3:-1]
-            txt = ann_txts[int(video_num)]
-            line = list(filter(lambda x: x[0].replace(".jpg", "") == frame_num, txt))[0]
-            clip_name = f"{video_num}_{frame_num}"
-            annotations[clip_name] = line
-        return annotations
-
-    def _load_frames(self, clip_dirs, clip_names):
-        raw_frame_sizes = {}
-        for i, clip_dir in enumerate(tqdm(clip_dirs, ncols=100, desc="frame")):
+    def _load_frames(self, clip_paths):
+        frame_lengths = []
+        for clip_path in tqdm(clip_paths, ncols=100, desc="frame"):
+            cap = video.Capture(clip_path)
             frames = []
-            target_frame_num = int(clip_names[i].split("_")[1])
-            start_frame_num = target_frame_num - self._seq_len + 1
-            img_paths = sorted(glob(os.path.join(clip_dir, "*.jpg")))
-            for img_path in img_paths:
-                frame_num = int(os.path.basename(img_path).replace(".jpg", ""))
-                if start_frame_num <= frame_num and frame_num <= target_frame_num:
-                    frame = cv2.imread(img_path, cv2.IMREAD_COLOR)
-                    if clip_names[i] not in raw_frame_sizes:
-                        raw_frame_sizes[clip_names[i]] = frame.shape[1::-1]
-                    frame = cv2.resize(frame, (self.w, self.h))
-                    frames.append(frame)
+            for _ in range(cap.frame_count):
+                frame = cap.read()[1]
+                frame = cv2.resize(frame, (self.w, self.h))
+                frames.append(frame)
+            frame_lengths.append(len(frames))
             self._frames.append(frames)
             del frames
-        return raw_frame_sizes
+
+        # TODO return all frame sizes
+        return cap.size, frame_lengths
 
     def _load_opticalflows(self, clip_dirs):
         for clip_dir in tqdm(clip_dirs, ncols=100, desc="flow"):
-            target_frame_num = 21  # target frame num is 21 in each video
-            start_frame_num = target_frame_num - self._seq_len + 1
-            flows = np.load(os.path.join(clip_dir, "flow.npy"))
-            flows = flows[start_frame_num : target_frame_num + 1]
+            flows = np.load(os.path.join(clip_dir, "bin", "flow.npy"), mmap_mode="r")
             flows_resized = []
             for flow in flows:
                 flow = cv2.resize(flow, (self.w, self.h))
@@ -104,48 +65,64 @@ class VideoDataset(AbstractDataset):
             self._frames[i] = super().transform_imgs(self._frames[i])
             self._flows[i] = super().transform_imgs(self._flows[i])
 
-    def _extract_bbox(self, annotations, raw_frame_sizes):
-        max_n_samples = 0
+    def _load_bboxs(self, clip_dirs, frame_size):
+        rx = self.w / frame_size[0]
+        ry = self.h / frame_size[1]
+        max_bboxs_num = 0
+        for clip_dir in clip_dirs:
+            # load from txt file
+            json_path = os.path.join(clip_dir, "json", "pose.json")
+            json_data = json_handler.load(json_path)
+            bboxs_clip = {}
+            for data in json_data:
+                frame_num = data["frame"]
+                bbox = np.array(data["bbox"]) * np.array([rx, ry, rx, ry])
+                if frame_num not in bboxs_clip:
+                    bboxs_clip[frame_num] = []
+                bboxs_clip[frame_num].append(bbox)
 
-        for clip_name, line in annotations.items():
-            frame_size = raw_frame_sizes[clip_name]
-            rx = self.w / frame_size[0]
-            ry = self.h / frame_size[1]
+            for bboxs_frame in bboxs_clip.values():
+                bboxs_num = len(bboxs_frame)
+                if bboxs_num > max_bboxs_num:
+                    max_bboxs_num = bboxs_num
 
-            n_persons = int(len(line[1:]) // 5)
-            bboxs_clip = []
-            for i in range(2, len(line), 5):
-                try:
-                    x, y, w, h = list(map(int, line[i : i + 4]))
-                except ValueError:
-                    break  # this line has space in last
-                b = np.array([x, y, x + w, y + h], dtype=np.float64)
-                b = b * np.array([rx, ry, rx, ry])
-                b = b.astype(int)
-                b[b < 0] = 0  # check x1, y1
-                b[2] = min(b[2], self.w)  # check x2
-                b[3] = min(b[3], self.h)  # check y2
-                bboxs_clip.append(b)
+            self._bboxs.append(bboxs_clip)
 
-            if max_n_samples < n_persons:
-                max_n_samples = n_persons
+        self._n_samples_batch = max_bboxs_num
 
-            self._bboxs.append(np.array(bboxs_clip))
-
-        self._n_samples_batch = max_n_samples
+    def _calc_idx_ranges(self, frame_lengths):
+        start_idx = 0
+        for frame_length in frame_lengths:
+            end_idx = start_idx + frame_length - self._seq_len
+            self._idx_ranges.append([start_idx, end_idx])
+            start_idx = end_idx + 1
+        self._idx_ranges = np.array(self._idx_ranges)
 
     def __len__(self):
-        return len(self._frames)
+        return self._idx_ranges[-1, 1] + 1
 
     def __getitem__(self, idx):
-        frames = self._frames[idx].transpose(1, 0)
-        flows = self._flows[idx].transpose(1, 0)
-        bboxs = self._bboxs[idx]
-        # append dmy bboxs
-        if len(bboxs) < self._n_samples_batch:
-            diff_num = self._n_samples_batch - len(bboxs)
-            dmy_bboxs = [np.full((4,), np.nan) for _ in range(diff_num)]
-            bboxs = np.append(bboxs, dmy_bboxs, axis=0)
+        idx_ranges = self._idx_ranges
+        clip_idx = np.where((idx_ranges[:, 0] <= idx) & (idx <= idx_ranges[:, 1]))
+        clip_idx = clip_idx[0].item()
+        data_idx = idx - idx_ranges[clip_idx, 0]
+
+        frames = self._frames[clip_idx][data_idx : data_idx + self._seq_len]
+        frames = frames.transpose(1, 0)
+        flows = self._flows[clip_idx][data_idx : data_idx + self._seq_len]
+        flows = flows.transpose(1, 0)
+
+        frame_num = data_idx + self._seq_len
+        if frame_num in self._bboxs[clip_idx]:
+            bboxs = self._bboxs[clip_idx][frame_num]
+            bboxs = np.array(bboxs)
+            # append dmy bboxs
+            if len(bboxs) < self._n_samples_batch:
+                diff_num = self._n_samples_batch - len(bboxs)
+                dmy_bboxs = [np.full((4,), np.nan) for _ in range(diff_num)]
+                bboxs = np.append(bboxs, dmy_bboxs, axis=0)
+        else:
+            bboxs = np.full((self._n_samples_batch, 4), np.nan)
         bboxs = torch.Tensor(bboxs)
 
         return frames, flows, bboxs, idx
