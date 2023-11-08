@@ -27,6 +27,13 @@ def parser():
         default=None,
         help="select from 'collective' or 'volleyball or 'video', default by None.",
     )
+    parser.add_argument(
+        "--comp",
+        required=False,
+        default=False,
+        action="store_true",
+        help="compress output from float32 to float16.",
+    )
 
     return parser.parse_args()
 
@@ -35,6 +42,7 @@ def main():
     args = parser()
     dataset_dir = args.dataset_dir
     dataset_type = args.dataset_type.lower()
+    comp = args.comp
 
     if dataset_type is None:
         if dataset_dir.endswith("/"):
@@ -75,17 +83,24 @@ def main():
             flow = cv2.calcOpticalFlowFarneback(
                 pre_gray, gray, None, 0.5, 3, 15, 3, 5, 1.2, 0
             )
-            flow = video.flow_to_rgb(flow)
+
+            # flow = video.flow_to_rgb(flow)  # for video output
+
             flows.append(flow)
             pre_gray = gray
         flows = [np.zeros_like(flow)] + flows
 
-        # np.save(output_path, np.array(flows))
+        output_path = os.path.join(clip_dir, "flow.npy")
+        if comp:
+            flows = np.array(flows, dtype=np.float16)
+        else:
+            flows = np.array(flows)
+        np.save(output_path)
 
-        output_path = os.path.join(clip_dir, "flow.mp4")
-        wrt = video.Writer(output_path, cap.fps, cap.size)
-        wrt.write_each(flows)
-        del wrt
+        # output_path = os.path.join(clip_dir, "flow.mp4")
+        # wrt = video.Writer(output_path, cap.fps, cap.size)
+        # wrt.write_each(flows)
+        # del wrt
         tqdm.write(f"saved {output_path}")
 
         del frames, flows
