@@ -42,13 +42,14 @@ class Capture:
     def set_pos_frame_time(self, begin_sec: int):
         self._cap.set(cv2.CAP_PROP_POS_FRAMES, begin_sec * self.fps)
 
-    def read(self, idx: Optional[int] = None) -> Tuple[bool, Union[NDArray, None]]:
+    def read(self, idx: Optional[int] = None, bgr2rgb: bool = False) -> Tuple[bool, Union[NDArray, None]]:
         if idx is not None:
             self.set_pos_frame_count(idx)
 
         ret, frame = self._cap.read()
         if ret:
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # BGR to RGB
+            if bgr2rgb:
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # BGR to RGB
             return True, frame
         else:
             return False, None
