@@ -24,31 +24,30 @@ class Decoder(nn.Module):
         ndf = cfg.autoencoder.ndf
         self._out_channels = out_channels
 
+        krnl = (1, 4, 4)
+        strd = (1, 2, 2)
+        pad = (0, 1, 1)
         self.net = nn.Sequential(
             # TODO: setup network automatically
-            nn.ConvTranspose2d(480, ndf * 8, 4, 2, 1, bias=False),
-            # nn.ConvTranspose2d(480, ndf * 8, 1, 1, 0, bias=False),
-            nn.BatchNorm2d(ndf * 8),
+            nn.ConvTranspose3d(480, ndf * 8, 4, 2, 1, bias=False),
+            nn.BatchNorm3d(ndf * 8),
             nn.LeakyReLU(0.1, True),
-            # (ndf*8) x h*2 x w*2
-            nn.ConvTranspose2d(ndf * 8, ndf * 4, 4, 2, 1, bias=False),
-            # nn.ConvTranspose2d(ndf * 8, ndf * 4, 1, 1, 0, bias=False),
-            nn.BatchNorm2d(ndf * 4),
+            # (ndf*8) x s*2 x h*2 x w*2
+            nn.ConvTranspose3d(ndf * 8, ndf * 4, krnl, strd, pad, bias=False),
+            nn.BatchNorm3d(ndf * 4),
             nn.LeakyReLU(0.1, True),
-            # (ndf*4) x h*4 x w*4
-            nn.ConvTranspose2d(ndf * 4, ndf * 2, 4, 2, 1, bias=False),
-            nn.BatchNorm2d(ndf * 2),
+            # (ndf*4) x s*2 x h*4 x w*4
+            nn.ConvTranspose3d(ndf * 4, ndf * 2, krnl, strd, pad, bias=False),
+            nn.BatchNorm3d(ndf * 2),
             nn.LeakyReLU(0.1, True),
-            # (ndf*2) x h*8 x w*8
-            nn.ConvTranspose2d(ndf * 2, ndf * 1, 1, 1, 0, bias=False),
-            # nn.ConvTranspose2d(ndf * 2, ndf * 1, 4, 2, 1, bias=False),
-            nn.BatchNorm2d(ndf * 1),
+            # (ndf*2) x s*2 x h*8 x w*8
+            nn.ConvTranspose3d(ndf * 2, ndf * 1, 1, 1, 0, bias=False),
+            nn.BatchNorm3d(ndf * 1),
             nn.LeakyReLU(0.1, True),
-            # (ndf*1) x h*8 x w*8
-            nn.ConvTranspose2d(ndf * 1, out_channels, 1, 1, 0, bias=False),
-            # nn.ConvTranspose2d(ndf * 1, out_channels, 4, 2, 1, bias=False),
+            # (ndf*1) x s*2 x h*8 x w*8
+            nn.ConvTranspose3d(ndf * 1, out_channels, 1, 1, 0, bias=False),
             nn.Tanh(),
-            # (out_chennels) x h*8 x w*8``
+            # (out_chennels) x s*2 x h*8 x w*8``
         )
 
     def forward(self, z):
@@ -58,7 +57,11 @@ class Decoder(nn.Module):
 class Autoencoder(nn.Module):
     def __init__(self, cfg, n_channels):
         super().__init__()
+        self._seq_len = cfg.seq_len
         self._e = Encoder(cfg, n_channels)
+        # self._d = nn.ModuleList(
+        #     [Decoder(cfg, n_channels) for _ in range(cfg.seq_len // 2)]
+        # )
         self._d = Decoder(cfg, n_channels)
 
     @property
@@ -70,6 +73,11 @@ class Autoencoder(nn.Module):
         return self._d
 
     def forward(self, imgs):
+        # imgs(b, c, seq_len, h, w)
+
         z = self._e(imgs)
-        fake_imgs = self._d(z[:, :, -1])
+        # z(b, 480, 10, fy, fx) from Mixed_3c
+
+        fake_imgs = self._d(z)
+        # fake_imgs(b, c, seq_len, h, w)
         return z, fake_imgs
