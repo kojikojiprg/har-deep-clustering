@@ -18,9 +18,9 @@ TRAIN_SET = [i for i in range(55) if i not in VALIDATION_SET and i not in TEST_S
 
 class VolleyballDataset(AbstractDataset):
     def __init__(self, dataset_dir: str, cfg: SimpleNamespace, stage: str):
-        super().__init__(cfg.seq_len, cfg.resize_ratio)
-        self.w = int(cfg.img_size.w * cfg.resize_ratio)
-        self.h = int(cfg.img_size.h * cfg.resize_ratio)
+        super().__init__(cfg.seq_len)
+        self.w = cfg.img_size.w
+        self.h = cfg.img_size.h
         self._create_dataset(dataset_dir, stage)
 
     def _create_dataset(self, dataset_dir, stage):

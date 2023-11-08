@@ -15,15 +15,17 @@ from utils import json_handler, video
 
 class VideoDataset(AbstractDataset):
     def __init__(self, dataset_dir: str, cfg: SimpleNamespace, stage: str):
-        super().__init__(cfg.seq_len, cfg.resize_ratio)
-        self.w = int(cfg.img_size.w * cfg.resize_ratio)
-        self.h = int(cfg.img_size.h * cfg.resize_ratio)
+        super().__init__(cfg.seq_len)
+        self.w = cfg.img_size.w
+        self.h = cfg.img_size.h
         self._idx_ranges = []
         self._create_dataset(dataset_dir, stage)
 
     def _create_dataset(self, dataset_dir, stage):
         clip_dirs = sorted(glob(os.path.join(dataset_dir, "*/")))
         clip_paths = sorted(glob(os.path.join(dataset_dir, "*.mp4")))
+        clip_dirs = clip_dirs[:1]
+        clip_paths = clip_paths[:1]
 
         # frame and flow
         frame_size, frame_lengths = self._load_frames(clip_paths)

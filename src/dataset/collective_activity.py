@@ -14,9 +14,9 @@ from dataset.abstract_dataset import AbstractDataset
 
 class CollectiveActivityDataset(AbstractDataset):
     def __init__(self, dataset_dir: str, cfg: SimpleNamespace, stage: str):
-        super().__init__(cfg.seq_len, cfg.resize_ratio)
-        self.w = int(cfg.img_size.w * cfg.resize_ratio)
-        self.h = int(cfg.img_size.h * cfg.resize_ratio)
+        super().__init__(cfg.seq_len)
+        self.w = cfg.img_size.w
+        self.h = cfg.img_size.h
         self._target_idxs = None
         self._clip_names = None
 
