@@ -9,8 +9,9 @@ def get_config(config_path: str) -> SimpleNamespace:
     config = _get_config_reccursive(config)
 
     # resize img size
-    config.img_size.w = int(config.img_size.w * config.resize_ratio)
-    config.img_size.h = int(config.img_size.h * config.resize_ratio)
+    resize_ratio = config.img_size.resize_ratio
+    config.img_size.w = int(config.img_size.w * resize_ratio)
+    config.img_size.h = int(config.img_size.h * resize_ratio)
 
     return config
 

@@ -18,9 +18,7 @@ class ClusteringModule(nn.Module):
 
         self._centroids = nn.ParameterList(
             [
-                nn.Parameter(
-                    torch.randn((cfg.ndf2), dtype=torch.float32), requires_grad=True
-                )
+                nn.Parameter(torch.randn(cfg.ndf2), requires_grad=True)
                 for _ in range(self._n_clusters)
             ]
         )

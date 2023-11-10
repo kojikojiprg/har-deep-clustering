@@ -27,7 +27,6 @@ class DeepClusteringModel(LightningModule):
     ):
         super().__init__()
         self._cfg = cfg
-        self._update_interval = cfg.update_interval
         self._n_samples = n_samples
         self._n_samples_batch = n_samples_batch
         self._lmd_cm = cfg.optim.lmd_cm
@@ -57,18 +56,12 @@ class DeepClusteringModel(LightningModule):
         return self._callbacks
 
     @property
-    def clustering_history(self) -> list:
-        return self._c_hist
-
-    @property
     def target_distribution(self) -> NDArray:
         return self._cm.target_distribution.detach().cpu().numpy()
 
     @property
     def centroids(self) -> NDArray:
-        return np.array(
-            [c.detach().numpy() for c in list(iter(self._cm.centroids.cpu()))]
-        )
+        return np.array([c.detach().numpy() for c in iter(self._cm.centroids.cpu())])
 
     def forward(self, frames, flows, bboxs):
         z_frame, fake_frames = self._ae_frame(frames)
@@ -82,46 +75,45 @@ class DeepClusteringModel(LightningModule):
         frames, flows, bboxs, data_idxs = batch
 
         # forward model
-        fake_frames, fake_flows, z, s, c = self(frames, flows, bboxs)
+        fake_frames, fake_flows, _, s, _ = self(frames, flows, bboxs)
 
-        if (
-            self.current_epoch % self._update_interval == 0  # periodical update
-            or self.current_epoch == self._cfg.epochs - 1  # last epoch
-        ):
-            # update target
+        if optimizer_idx == 0:  # update target
+            # if self.current_epoch + 1 >= self._cfg.clustering_start_epoch:
             self._cm.update_target_distribution(s, data_idxs)
 
         # calc autrocoder loss
-        lr_frame = self._lr(frames, fake_frames)
-        lr_flow = self._lr(flows, fake_flows)
+        if optimizer_idx in [0, 2]:
+            lr_frame = self._lr(frames, fake_frames)
+        if optimizer_idx in [1, 3]:
+            lr_flow = self._lr(flows, fake_flows)
 
         # calc clustering loss
-        lc_total = 0
-        for i, data_idx in enumerate(data_idxs):
-            idx = data_idx * self._n_samples_batch
-            tmp_target = self._cm.target_distribution[idx : idx + self._n_samples_batch]
-            tmp_s = s[i]
-            lc_total = lc_total + self._lc(tmp_s.log(), tmp_target)
-
-        self.log_dict(
-            {"lr_frame": lr_frame, "lr_flow": lr_flow, "lc": lc_total},
-            prog_bar=True,
-            on_epoch=True,
-        )
+        if optimizer_idx in [0, 1, 4]:
+            lc_total = 0
+            # if self.current_epoch + 1 >= self._cfg.clustering_start_epoch:
+            for i, data_idx in enumerate(data_idxs):
+                idx = data_idx * self._n_samples_batch
+                tmp_target = self._cm.target_distribution[
+                    idx : idx + self._n_samples_batch
+                ]
+                tmp_s = s[i]
+                lc_total = lc_total + self._lc(tmp_s.log(), tmp_target)
 
         if optimizer_idx == 0:  # frame encoder
             return lr_frame + lc_total * self._lmd_cm
         elif optimizer_idx == 1:  # flow encoder
             return lr_flow + lc_total * self._lmd_cm
         elif optimizer_idx == 2:  # frame decoder
+            self.log("lr_frame", lr_frame, on_epoch=True)
             return lr_frame
         elif optimizer_idx == 3:  # flow decoder
+            self.log("lr_flow", lr_flow, on_epoch=True)
             return lr_flow
         elif optimizer_idx == 4:  # clustering
-            # if self.current_epoch + 1 >= self._cfg.clustering_start_epoch:
+            # if self.current_epoch + 1 < self._cfg.clustering_start_epoch:
+            #     return None  # skip training clustering module
+            self.log("lc", lc_total, prog_bar=True, on_epoch=True)
             return lc_total
-            # else:
-            #     return None
         else:
             raise ValueError(f"optimizer_idx {optimizer_idx}")
 
@@ -187,7 +179,7 @@ class DeepClusteringModel(LightningModule):
         optim_cm = torch.optim.Adam(self._cm.parameters(), self._cfg.optim.lr_rate_cm)
 
         # scheduler
-        step_size = (self._cfg.epochs + self._cfg.clustering_start_epoch - 1) // 2
+        step_size = self._cfg.epochs // 2
         sch_e_frame = torch.optim.lr_scheduler.StepLR(
             optim_e_frame, step_size=step_size, gamma=0.1
         )
@@ -200,8 +192,6 @@ class DeepClusteringModel(LightningModule):
         sch_d_flow = torch.optim.lr_scheduler.StepLR(
             optim_d_flow, step_size=step_size, gamma=0.1
         )
-
-        step_size = (self._cfg.epochs - self._cfg.clustering_start_epoch + 1) // 2
         sch_cm = torch.optim.lr_scheduler.StepLR(
             optim_cm, step_size=step_size, gamma=0.1
         )
