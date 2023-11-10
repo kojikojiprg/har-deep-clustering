@@ -44,7 +44,7 @@ class CollectiveActivityDataset(AbstractDataset):
 
         # bbox
         self._extract_bbox(annotations, clip_names, frame_sizes)
-        self._calc_idx_ranges(annotations, clip_names)
+        self._calc_target_idxs(annotations, clip_names)
 
     def _load_annotations(self, clip_dirs):
         annotations = {}
@@ -149,7 +149,7 @@ class CollectiveActivityDataset(AbstractDataset):
 
         self._n_samples_batch = max_n_samples
 
-    def _calc_idx_ranges(self, annotations, clip_names):
+    def _calc_target_idxs(self, annotations, clip_names):
         target_idxs = []
         for clip_idx, clip_name in enumerate(clip_names):
             ann = annotations[clip_name]["annotation"]

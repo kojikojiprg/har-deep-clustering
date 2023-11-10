@@ -1,7 +1,7 @@
 import os
 import sys
-from types import SimpleNamespace
 from glob import glob
+from types import SimpleNamespace
 
 import cv2
 import numpy as np
@@ -18,7 +18,9 @@ class VideoDataset(AbstractDataset):
         super().__init__(cfg.seq_len)
         self.w = cfg.img_size.w
         self.h = cfg.img_size.h
-        self._idx_ranges = []
+        self._start_idxs = []
+        self._frame_num_period = 2
+
         self._create_dataset(dataset_dir, stage)
 
     def _create_dataset(self, dataset_dir, stage):
@@ -35,7 +37,7 @@ class VideoDataset(AbstractDataset):
         # bbox
         self._load_bboxs(clip_dirs, frame_size)
 
-        self._calc_idx_ranges(frame_lengths)
+        self._calc_start_idxs(frame_lengths)
 
     def _load_frames(self, clip_paths):
         frame_lengths = []
@@ -79,6 +81,12 @@ class VideoDataset(AbstractDataset):
             bboxs_clip = {}
             for data in json_data:
                 frame_num = data["frame"]
+                if (
+                    frame_num % self._frame_num_period != 0
+                    and frame_num < self._seq_len
+                ):
+                    continue
+
                 bbox = np.array(data["bbox"]) * np.array([rx, ry, rx, ry])
                 if frame_num not in bboxs_clip:
                     bboxs_clip[frame_num] = []
@@ -93,22 +101,18 @@ class VideoDataset(AbstractDataset):
 
         self._n_samples_batch = max_bboxs_num
 
-    def _calc_idx_ranges(self, frame_lengths):
-        start_idx = 0
-        for frame_length in frame_lengths:
-            end_idx = start_idx + frame_length - self._seq_len
-            self._idx_ranges.append([start_idx, end_idx])
-            start_idx = end_idx + 1
-        self._idx_ranges = np.array(self._idx_ranges)
+    def _calc_start_idxs(self, frame_lengths):
+        for clip_idx, frame_length in enumerate(frame_lengths):
+            for data_idx in range(
+                0, frame_length - self._seq_len + 1, self._frame_num_period
+            ):
+                self._start_idxs.append((clip_idx, data_idx))
 
     def __len__(self):
-        return self._idx_ranges[-1, 1] + 1
+        return len(self._start_idxs)
 
     def __getitem__(self, idx):
-        idx_ranges = self._idx_ranges
-        clip_idx = np.where((idx_ranges[:, 0] <= idx) & (idx <= idx_ranges[:, 1]))
-        clip_idx = clip_idx[0].item()
-        data_idx = idx - idx_ranges[clip_idx, 0]
+        clip_idx, data_idx = self._start_idxs[idx]
 
         frames = self._frames[clip_idx][data_idx : data_idx + self._seq_len]
         frames = frames.transpose(1, 0)
