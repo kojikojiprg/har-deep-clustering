@@ -18,17 +18,22 @@ class ClusteringModule(nn.Module):
 
         self._centroids = nn.ParameterList(
             [
-                nn.Parameter(torch.randn(cfg.ndf2), requires_grad=True)
+                nn.Parameter(torch.normal(0, 0.2, (cfg.ndf,)), requires_grad=True)
+                # nn.Parameter(torch.randn(cfg.ndf), requires_grad=True)
                 for _ in range(self._n_clusters)
             ]
         )
         self._target_distribution = torch.zeros((self._n_samples, self._n_clusters))
 
         os = cfg.roialign.output_size
+        # self._emb = nn.Sequential(
+        #     nn.Linear(480 * os * os, cfg.ndf1),
+        #     nn.Linear(cfg.ndf1, cfg.ndf2),
+        # )
         self._emb = nn.Sequential(
-            nn.Linear(480 * os * os, cfg.ndf1),
-            nn.Linear(cfg.ndf1, cfg.ndf2),
+            nn.Linear(480 * os * os, cfg.ndf),
         )
+        self._emb.requires_grad_ = False
         self._roi_align = RoIAlign(
             os,
             cfg.roialign.spatial_scale,
