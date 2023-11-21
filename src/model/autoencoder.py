@@ -59,9 +59,6 @@ class Autoencoder(nn.Module):
         super().__init__()
         self._seq_len = cfg.seq_len
         self._e = Encoder(cfg, n_channels)
-        # self._d = nn.ModuleList(
-        #     [Decoder(cfg, n_channels) for _ in range(cfg.seq_len // 2)]
-        # )
         self._d = Decoder(cfg, n_channels)
 
     @property
