@@ -25,8 +25,8 @@ def parser():
         "--dataset_type",
         type=str,
         required=False,
-        default=None,
-        help="select from 'collective' or 'volleyball or 'video', default by None.",
+        default="video",
+        help="select from 'collective' or 'volleyball or 'video', default by 'video'.",
     )
     parser.add_argument(
         "--comp",
@@ -74,8 +74,7 @@ def main():
         else:
             clip_path = os.path.dirname(clip_dir) + ".mp4"
             cap = video.Capture(clip_path)
-            # frames = [cap.read()[1] for _ in tqdm(range(cap.frame_count), leave=False)]
-            frames = [cap.read()[1] for _ in tqdm(range(20), leave=False)]
+            frames = [cap.read()[1] for _ in tqdm(range(cap.frame_count), leave=False)]
 
         pre_gray = cv2.cvtColor(frames[0], cv2.COLOR_BGR2GRAY)
         flows = []
