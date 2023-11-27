@@ -114,8 +114,6 @@ class DeepClusteringModel(LightningModule):
             #     return None  # skip training clustering module
             self.log("lc", lc_total, prog_bar=True, on_epoch=True)
             return lc_total
-        else:
-            raise ValueError(f"optimizer_idx {optimizer_idx}")
 
     def validation_step(self, batch, batch_idx):
         frames, flows, bboxs, data_idxs = batch
