@@ -177,7 +177,7 @@ class DeepClusteringModel(LightningModule):
             self._ae_flow.D.parameters(), self._cfg.optim.lr_rate_ae_flow
         )
         optim_cm = torch.optim.Adam(self._cm.parameters(), self._cfg.optim.lr_rate_cm)
-        optim_cm = torch.optim.SGD(self._cm.parameters(), self._cfg.optim.lr_rate_cm)
+        optim_cm = torch.optim.Adam(self._cm.parameters(), self._cfg.optim.lr_rate_cm)
 
         # scheduler
         step_size = self._cfg.epochs // 2

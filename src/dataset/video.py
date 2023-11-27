@@ -19,15 +19,15 @@ class VideoDataset(AbstractDataset):
         self.w = cfg.img_size.w
         self.h = cfg.img_size.h
         self._start_idxs = []
-        self._frame_num_period = 2
+        self._frame_num_period = 1
 
         self._create_dataset(dataset_dir, stage)
 
     def _create_dataset(self, dataset_dir, stage):
         clip_dirs = sorted(glob(os.path.join(dataset_dir, "*/")))
         clip_paths = sorted(glob(os.path.join(dataset_dir, "*.mp4")))
-        clip_dirs = clip_dirs[:1]
-        clip_paths = clip_paths[:1]
+        # clip_dirs = clip_dirs[:1]
+        # clip_paths = clip_paths[:1]
 
         # frame and flow
         frame_size, frame_lengths = self._load_frames(clip_paths)
@@ -57,7 +57,7 @@ class VideoDataset(AbstractDataset):
 
     def _load_opticalflows(self, clip_dirs):
         for clip_dir in tqdm(clip_dirs, ncols=100, desc="flow"):
-            flows = np.load(os.path.join(clip_dir, "bin", "flow.npy"), mmap_mode="r")
+            flows = np.load(os.path.join(clip_dir, "flow.npy"), mmap_mode="r")
             flows_resized = []
             for flow in flows:
                 flow = cv2.resize(flow, (self.w, self.h))

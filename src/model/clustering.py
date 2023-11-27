@@ -16,16 +16,6 @@ class ClusteringModule(nn.Module):
         self._n_clusters = cfg.n_clusters
         self._t_alpha = cfg.alpha
 
-        self._centroids = nn.ParameterList(
-            [
-                # nn.Parameter(torch.normal(0, 0.5, (cfg.ndf,)), requires_grad=True)
-                # nn.Parameter(torch.randn(cfg.ndf), requires_grad=True)
-                nn.Parameter(torch.rand(cfg.ndf), requires_grad=True)
-                for _ in range(self._n_clusters)
-            ]
-        )
-        self._target_distribution = torch.zeros((self._n_samples, self._n_clusters))
-
         os = cfg.roialign.output_size
         # self._emb = nn.Sequential(
         #     nn.Linear(480 * os * os, cfg.ndf1),
@@ -41,6 +31,21 @@ class ClusteringModule(nn.Module):
             1,
             cfg.roialign.aligned,
         )
+
+        # mu = torch.normal(0, 0.5, (cfg.n_clusters,))
+        # sig = torch.rand(cfg.n_clusters)
+        # z = torch.normal(0, 0.5, (cfg.n_clusters, 480 * os * os))
+        z = torch.rand((cfg.n_clusters, 480 * os * os))
+        self._centroids = nn.ParameterList(
+            [
+                # nn.Parameter(
+                #     torch.normal(mu[i], sig[i], (cfg.ndf,)), requires_grad=True
+                # )
+                nn.Parameter(self._emb(z[i]), requires_grad=True)
+                for i in range(self._n_clusters)
+            ]
+        )
+        self._target_distribution = torch.zeros((self._n_samples, self._n_clusters))
 
     @property
     def centroids(self):
