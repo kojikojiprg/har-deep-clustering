@@ -21,6 +21,7 @@ def parser():
     )
     # optional
     parser.add_argument(
+        "-dt",
         "--dataset_type",
         type=str,
         required=False,
@@ -62,7 +63,7 @@ def main():
     else:
         raise TypeError
 
-    for clip_dir in tqdm(clip_dirs[:1], ncols=100):
+    for clip_dir in tqdm(clip_dirs, ncols=100):
         # output_path = os.path.join(clip_dir, "flow.npy")
         # if os.path.exists(output_path):
         #     continue
@@ -95,7 +96,7 @@ def main():
             flows = np.array(flows, dtype=np.float16)
         else:
             flows = np.array(flows)
-        np.save(output_path)
+        np.save(output_path, flows)
 
         # output_path = os.path.join(clip_dir, "flow.mp4")
         # wrt = video.Writer(output_path, cap.fps, cap.size)
