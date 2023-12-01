@@ -21,11 +21,12 @@ def parser():
     )
     # optional
     parser.add_argument(
+        "-dt",
         "--dataset_type",
         type=str,
         required=False,
-        default=None,
-        help="select from 'collective' or 'volleyball or 'video', default by None.",
+        default="video",
+        help="select from 'collective' or 'volleyball or 'video', default by 'video'.",
     )
     parser.add_argument(
         "--comp",
@@ -62,7 +63,7 @@ def main():
     else:
         raise TypeError
 
-    for clip_dir in tqdm(clip_dirs[:1], ncols=100):
+    for clip_dir in tqdm(clip_dirs, ncols=100):
         # output_path = os.path.join(clip_dir, "flow.npy")
         # if os.path.exists(output_path):
         #     continue
@@ -73,8 +74,7 @@ def main():
         else:
             clip_path = os.path.dirname(clip_dir) + ".mp4"
             cap = video.Capture(clip_path)
-            # frames = [cap.read()[1] for _ in tqdm(range(cap.frame_count), leave=False)]
-            frames = [cap.read()[1] for _ in tqdm(range(20), leave=False)]
+            frames = [cap.read()[1] for _ in tqdm(range(cap.frame_count), leave=False)]
 
         pre_gray = cv2.cvtColor(frames[0], cv2.COLOR_BGR2GRAY)
         flows = []
@@ -95,7 +95,7 @@ def main():
             flows = np.array(flows, dtype=np.float16)
         else:
             flows = np.array(flows)
-        np.save(output_path)
+        np.save(output_path, flows)
 
         # output_path = os.path.join(clip_dir, "flow.mp4")
         # wrt = video.Writer(output_path, cap.fps, cap.size)

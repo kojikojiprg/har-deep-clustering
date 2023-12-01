@@ -27,6 +27,7 @@ class DeepClusteringModel(LightningModule):
     ):
         super().__init__()
         self._cfg = cfg
+        self._update_interval = cfg.update_interval
         self._n_samples = n_samples
         self._n_samples_batch = n_samples_batch
         self._lmd_cm = cfg.optim.lmd_cm
@@ -79,7 +80,8 @@ class DeepClusteringModel(LightningModule):
 
         if optimizer_idx == 0:  # update target
             # if self.current_epoch + 1 >= self._cfg.clustering_start_epoch:
-            self._cm.update_target_distribution(s, data_idxs)
+            if self.current_epoch % self._update_interval == 0:
+                self._cm.update_target_distribution(s, data_idxs)
 
         # calc autrocoder loss
         if optimizer_idx in [0, 2]:
@@ -114,8 +116,6 @@ class DeepClusteringModel(LightningModule):
             #     return None  # skip training clustering module
             self.log("lc", lc_total, prog_bar=True, on_epoch=True)
             return lc_total
-        else:
-            raise ValueError(f"optimizer_idx {optimizer_idx}")
 
     def validation_step(self, batch, batch_idx):
         frames, flows, bboxs, data_idxs = batch
@@ -177,7 +177,7 @@ class DeepClusteringModel(LightningModule):
             self._ae_flow.D.parameters(), self._cfg.optim.lr_rate_ae_flow
         )
         optim_cm = torch.optim.Adam(self._cm.parameters(), self._cfg.optim.lr_rate_cm)
-        optim_cm = torch.optim.SGD(self._cm.parameters(), self._cfg.optim.lr_rate_cm)
+        optim_cm = torch.optim.Adam(self._cm.parameters(), self._cfg.optim.lr_rate_cm)
 
         # scheduler
         step_size = self._cfg.epochs // 2

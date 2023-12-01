@@ -2,8 +2,9 @@ batch_size: 1
 seq_len: 20
 # epochs: 120
 # clustering_start_epoch: 21
-epochs: 100
-accumulate_grad_batches: 16
+epochs: 200
+update_interval: 4
+accumulate_grad_batches: 64
 
 img_size:
   w: 1280
@@ -13,21 +14,19 @@ img_size:
 autoencoder:
   i3d:
     final_endpoint: Mixed_3c
-  ndf: 16
+  ndf: 24
 
 clustering:
   n_clusters: 8
-  # ndf1: 1024
-  # ndf2: 32
-  ndf: 32
-  alpha: 2  # freedom of student T
+  ndf: 16
+  alpha: 4  # freedom of student T
   roialign:
-    output_size: 7
+    output_size: 5
     spatial_scale: 0.125
     aligned: True
 
 optim:
   lr_rate_ae_frame: 0.0001
   lr_rate_ae_flow: 0.0001
-  lr_rate_cm: 1
-  lmd_cm: 1
+  lr_rate_cm: 10
+  lmd_cm: 10
