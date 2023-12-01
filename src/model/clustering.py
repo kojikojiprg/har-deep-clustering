@@ -32,9 +32,6 @@ class ClusteringModule(nn.Module):
             cfg.roialign.aligned,
         )
 
-        # mu = torch.normal(0, 0.5, (cfg.n_clusters,))
-        # sig = torch.rand(cfg.n_clusters)
-        # z = torch.normal(0, 0.5, (cfg.n_clusters, 480 * os * os))
         z = torch.rand((cfg.n_clusters, 480 * os * os))
         self._centroids = nn.ParameterList(
             [
