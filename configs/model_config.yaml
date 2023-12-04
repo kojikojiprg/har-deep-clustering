@@ -28,5 +28,5 @@ clustering:
 optim:
   lr_rate_ae_frame: 0.0001
   lr_rate_ae_flow: 0.0001
-  lr_rate_cm: 10
+  lr_rate_cm: 1
   lmd_cm: 10
