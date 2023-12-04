@@ -72,48 +72,56 @@ class DeepClusteringModel(LightningModule):
 
         return fake_frames, fake_flows, z, s, c
 
+    def _calc_lc(self, s, data_idxs):
+        # calc clustering loss
+        lc_total = 0
+        # if self.current_epoch + 1 >= self._cfg.clustering_start_epoch:
+        for i, data_idx in enumerate(data_idxs):
+            idx = data_idx * self._n_samples_batch
+            tmp_target = self._cm.target_distribution[
+                idx : idx + self._n_samples_batch
+            ]
+            tmp_s = s[i]
+            lc_total = lc_total + self._lc(tmp_s.log(), tmp_target)
+
+        return lc_total
+
     def training_step(self, batch, batch_idx, optimizer_idx):
         frames, flows, bboxs, data_idxs = batch
 
-        # forward model
-        fake_frames, fake_flows, _, s, _ = self(frames, flows, bboxs)
+        if optimizer_idx == 0:  # frame encoder
+            fake_frames, fake_flows, _, s, _ = self(frames, flows, bboxs)
 
-        if optimizer_idx == 0:  # update target
-            # if self.current_epoch + 1 >= self._cfg.clustering_start_epoch:
-            if self.current_epoch % self._update_interval == 0:
+            if self.current_epoch % self._update_interval == 0:  # update target
                 self._cm.update_target_distribution(s, data_idxs)
 
-        # calc autrocoder loss
-        if optimizer_idx in [0, 2]:
             lr_frame = self._lr(frames, fake_frames)
-        if optimizer_idx in [1, 3]:
-            lr_flow = self._lr(flows, fake_flows)
-
-        # calc clustering loss
-        if optimizer_idx in [0, 1, 4]:
-            lc_total = 0
-            # if self.current_epoch + 1 >= self._cfg.clustering_start_epoch:
-            for i, data_idx in enumerate(data_idxs):
-                idx = data_idx * self._n_samples_batch
-                tmp_target = self._cm.target_distribution[
-                    idx : idx + self._n_samples_batch
-                ]
-                tmp_s = s[i]
-                lc_total = lc_total + self._lc(tmp_s.log(), tmp_target)
-
-        if optimizer_idx == 0:  # frame encoder
+            lc_total = self._calc_lc(data_idxs, s)
             return lr_frame + lc_total * self._lmd_cm
+
         elif optimizer_idx == 1:  # flow encoder
+            fake_frames, fake_flows, _, s, _ = self(frames, flows, bboxs)
+            lr_flow = self._lr(flows, fake_flows)
+            lc_total = self._calc_lc(data_idxs, s)
             return lr_flow + lc_total * self._lmd_cm
+
         elif optimizer_idx == 2:  # frame decoder
+            _, fake_frames = self._ae_frame(frames)
+            lr_frame = self._lr(frames, fake_frames)
             self.log("lr_frame", lr_frame, on_epoch=True)
             return lr_frame
+
         elif optimizer_idx == 3:  # flow decoder
+            _, fake_flows = self._ae_flow(flows)
+            lr_flow = self._lr(flows, fake_flows)
             self.log("lr_flow", lr_flow, on_epoch=True)
             return lr_flow
+
         elif optimizer_idx == 4:  # clustering
+            fake_frames, fake_flows, _, s, _ = self(frames, flows, bboxs)
             # if self.current_epoch + 1 < self._cfg.clustering_start_epoch:
             #     return None  # skip training clustering module
+            lc_total = self._calc_lc(data_idxs, s)
             self.log("lc", lc_total, prog_bar=True, on_epoch=True)
             return lc_total
 
@@ -146,16 +154,17 @@ class DeepClusteringModel(LightningModule):
         frames, flows, bboxs, data_idxs = batch
         batch_size = frames.shape[0]
 
-        z_frame, frames_out = self._ae_frame(frames)
-        z_flow, flows_out = self._ae_flow(flows)
-        z = z_frame.detach() + z_flow.detach()
-        z, s, c = self._cm(z, bboxs)
+        _, _, z, _, c = self(frames, flows, bboxs.clone())
         preds = []
         for i in range(batch_size):
             for j in range(self._n_samples_batch):
+                bbox = bboxs[i, j].cpu().numpy()
+                if np.any(np.isnan(bbox)):
+                    continue
                 data = {
                     "sample_num": (data_idxs[i] + j).item(),
                     "z": z[i, j].cpu().numpy(),
+                    "bbox": bbox,
                     "c": c[i, j].item(),
                 }
                 preds.append(data)
@@ -176,7 +185,6 @@ class DeepClusteringModel(LightningModule):
         optim_d_flow = torch.optim.Adam(
             self._ae_flow.D.parameters(), self._cfg.optim.lr_rate_ae_flow
         )
-        optim_cm = torch.optim.Adam(self._cm.parameters(), self._cfg.optim.lr_rate_cm)
         optim_cm = torch.optim.Adam(self._cm.parameters(), self._cfg.optim.lr_rate_cm)
 
         # scheduler
