@@ -42,7 +42,9 @@ class Capture:
     def set_pos_frame_time(self, begin_sec: int):
         self._cap.set(cv2.CAP_PROP_POS_FRAMES, begin_sec * self.fps)
 
-    def read(self, idx: Optional[int] = None, bgr2rgb: bool = False) -> Tuple[bool, Union[NDArray, None]]:
+    def read(
+        self, idx: Optional[int] = None, bgr2rgb: bool = False
+    ) -> Tuple[bool, Union[NDArray, None]]:
         if idx is not None:
             self.set_pos_frame_count(idx)
 
@@ -69,13 +71,15 @@ class Writer:
         self._writer.release()
         gc.collect()
 
-    def write(self, frame):
-        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)  # RGB to BGR
+    def write(self, frame, rgb2bgr: bool = False):
+        if rgb2bgr:
+            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)  # RGB to BGR
         self._writer.write(frame)
 
-    def write_each(self, frames):
+    def write_each(self, frames, rgb2bgr: bool = False):
         for frame in frames:
-            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)  # RGB to BGR
+            if rgb2bgr:
+                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)  # RGB to BGR
             self._writer.write(frame)
 
 
