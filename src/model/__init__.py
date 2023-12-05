@@ -4,11 +4,12 @@ from typing import Optional
 
 import cv2
 import numpy as np
-import torch
 import torch.nn as nn
 from lightning.pytorch import LightningModule
 from lightning.pytorch.callbacks import ModelCheckpoint
 from numpy.typing import NDArray
+from torch.optim import Adam
+from torch.optim.lr_scheduler import StepLR
 
 from .autoencoder import Autoencoder
 from .clustering import ClusteringModule
@@ -32,7 +33,6 @@ class DeepClusteringModel(LightningModule):
         self._n_samples_batch = n_samples_batch
         self._lmd_cm = cfg.optim.lmd_cm
 
-        self._ae_frame = Autoencoder(cfg, 3)
         self._ae_flow = Autoencoder(cfg, 2)
         self._cm = ClusteringModule(cfg, n_samples, n_samples_batch)
 
@@ -64,84 +64,63 @@ class DeepClusteringModel(LightningModule):
     def centroids(self) -> NDArray:
         return np.array([c.detach().numpy() for c in iter(self._cm.centroids.cpu())])
 
-    def forward(self, frames, flows, bboxs):
-        z_frame, fake_frames = self._ae_frame(frames)
-        z_flow, fake_flows = self._ae_flow(flows)
-        z = z_frame.detach() + z_flow.detach()
-        z, s, c = self._cm(z, bboxs)
+    def forward(self, flows, bboxs):
+        z, fake_flows = self._ae_flow(flows)
+        z, s, c = self._cm(z.detach(), bboxs)
 
-        return fake_frames, fake_flows, z, s, c
+        return fake_flows, z, s, c
 
-    def _calc_lc(self, s, data_idxs):
+    def _calc_lc(self, s, bboxs, data_idxs):
         # calc clustering loss
         lc_total = 0
         # if self.current_epoch + 1 >= self._cfg.clustering_start_epoch:
         for i, data_idx in enumerate(data_idxs):
             idx = data_idx * self._n_samples_batch
-            tmp_target = self._cm.target_distribution[
-                idx : idx + self._n_samples_batch
-            ]
+            tmp_t = self._cm.target_distribution[idx : idx + self._n_samples_batch]
             tmp_s = s[i]
-            lc_total = lc_total + self._lc(tmp_s.log(), tmp_target)
+
+            bboxs_batch = bboxs[i].cpu().numpy()
+            mask_not_nan = ~np.isnan(bboxs_batch).any(axis=1)
+            tmp_t = tmp_t[mask_not_nan]
+            tmp_s = tmp_s[mask_not_nan]
+            lc_total = lc_total + self._lc(tmp_s.log(), tmp_t)
 
         return lc_total
 
     def training_step(self, batch, batch_idx, optimizer_idx):
-        frames, flows, bboxs, data_idxs = batch
+        _, flows, bboxs, data_idxs = batch
 
-        if optimizer_idx == 0:  # frame encoder
-            fake_frames, fake_flows, _, s, _ = self(frames, flows, bboxs)
+        if optimizer_idx == 0:  # clustering
+            fake_flows, _, s, _ = self(flows, bboxs)
 
             if self.current_epoch % self._update_interval == 0:  # update target
                 self._cm.update_target_distribution(s, data_idxs)
 
-            lr_frame = self._lr(frames, fake_frames)
-            lc_total = self._calc_lc(data_idxs, s)
-            return lr_frame + lc_total * self._lmd_cm
+            # if self.current_epoch + 1 < self._cfg.clustering_start_epoch:
+            #     return None  # skip training clustering module
+            lc_total = self._calc_lc(s, bboxs, data_idxs)
+            self.log("lc", lc_total, prog_bar=True, on_epoch=True)
+            return lc_total
 
-        elif optimizer_idx == 1:  # flow encoder
-            fake_frames, fake_flows, _, s, _ = self(frames, flows, bboxs)
-            lr_flow = self._lr(flows, fake_flows)
-            lc_total = self._calc_lc(data_idxs, s)
-            return lr_flow + lc_total * self._lmd_cm
-
-        elif optimizer_idx == 2:  # frame decoder
-            _, fake_frames = self._ae_frame(frames)
-            lr_frame = self._lr(frames, fake_frames)
-            self.log("lr_frame", lr_frame, on_epoch=True)
-            return lr_frame
-
-        elif optimizer_idx == 3:  # flow decoder
+        elif optimizer_idx == 1:  # flow decoder
             _, fake_flows = self._ae_flow(flows)
             lr_flow = self._lr(flows, fake_flows)
             self.log("lr_flow", lr_flow, on_epoch=True)
             return lr_flow
 
-        elif optimizer_idx == 4:  # clustering
-            fake_frames, fake_flows, _, s, _ = self(frames, flows, bboxs)
-            # if self.current_epoch + 1 < self._cfg.clustering_start_epoch:
-            #     return None  # skip training clustering module
-            lc_total = self._calc_lc(data_idxs, s)
-            self.log("lc", lc_total, prog_bar=True, on_epoch=True)
-            return lc_total
+        elif optimizer_idx == 2:  # flow encoder
+            fake_flows, _, s, _ = self(flows, bboxs)
+            lr_flow = self._lr(flows, fake_flows)
+            lc_total = self._calc_lc(s, bboxs, data_idxs)
+            return lr_flow + lc_total * self._lmd_cm
 
     def validation_step(self, batch, batch_idx):
         frames, flows, bboxs, data_idxs = batch
 
         # forward autoencoder
-        _, frames_fake = self._ae_frame(frames)
         _, flows_fake = self._ae_flow(flows)
 
         # save fig
-        frames = frames[:, :, -1]
-        frames = frames.permute(0, 2, 3, 1).detach().cpu().numpy()
-        frames_fake = frames_fake[:, :, -1]
-        frames_fake = frames_fake.permute(0, 2, 3, 1).detach().cpu().numpy()
-        frames = ((frames + 1) / 2 * 255).astype(np.uint8)
-        frames_fake = ((frames_fake + 1) / 2 * 255).astype(np.uint8)
-        cv2.imwrite(f"images/batch{batch_idx}_framein.jpg", frames[0])
-        cv2.imwrite(f"images/batch{batch_idx}_frameout.jpg", frames_fake[0])
-
         flow = flows[:, :, -1].permute(0, 2, 3, 1).cpu().numpy()[0]
         flow = flow_to_rgb(flow)
         flows_fake = flows_fake[:, :, -1]
@@ -152,9 +131,9 @@ class DeepClusteringModel(LightningModule):
 
     def predict_step(self, batch, batch_idx):
         frames, flows, bboxs, data_idxs = batch
-        batch_size = frames.shape[0]
+        batch_size = flows.shape[0]
 
-        _, _, z, _, c = self(frames, flows, bboxs.clone())
+        _, z, _, c = self(flows, bboxs.clone())
         preds = []
         for i in range(batch_size):
             for j in range(self._n_samples_batch):
@@ -173,39 +152,21 @@ class DeepClusteringModel(LightningModule):
 
     def configure_optimizers(self):
         # optimizer
-        optim_e_frame = torch.optim.Adam(
-            self._ae_frame.E.parameters(), self._cfg.optim.lr_rate_ae_frame
-        )
-        optim_e_flow = torch.optim.Adam(
-            self._ae_flow.E.parameters(), self._cfg.optim.lr_rate_ae_flow
-        )
-        optim_d_frame = torch.optim.Adam(
-            self._ae_frame.D.parameters(), self._cfg.optim.lr_rate_ae_frame
-        )
-        optim_d_flow = torch.optim.Adam(
+        optim_cm = Adam(self._cm.parameters(), self._cfg.optim.lr_rate_cm)
+        optim_d_flow = Adam(
             self._ae_flow.D.parameters(), self._cfg.optim.lr_rate_ae_flow
         )
-        optim_cm = torch.optim.Adam(self._cm.parameters(), self._cfg.optim.lr_rate_cm)
+        optim_e_flow = Adam(
+            self._ae_flow.E.parameters(), self._cfg.optim.lr_rate_ae_flow
+        )
 
         # scheduler
         step_size = self._cfg.epochs // 2
-        sch_e_frame = torch.optim.lr_scheduler.StepLR(
-            optim_e_frame, step_size=step_size, gamma=0.1
-        )
-        sch_e_flow = torch.optim.lr_scheduler.StepLR(
-            optim_e_flow, step_size=step_size, gamma=0.1
-        )
-        sch_d_frame = torch.optim.lr_scheduler.StepLR(
-            optim_d_frame, step_size=step_size, gamma=0.1
-        )
-        sch_d_flow = torch.optim.lr_scheduler.StepLR(
-            optim_d_flow, step_size=step_size, gamma=0.1
-        )
-        sch_cm = torch.optim.lr_scheduler.StepLR(
-            optim_cm, step_size=step_size, gamma=0.1
-        )
+        sch_cm = StepLR(optim_cm, step_size, 0.1)
+        sch_d_flow = StepLR(optim_d_flow, step_size, 0.1)
+        sch_e_flow = StepLR(optim_e_flow, step_size, 0.1)
 
         return (
-            [optim_e_frame, optim_e_flow, optim_d_frame, optim_d_flow, optim_cm],
-            [sch_e_frame, sch_e_flow, sch_d_frame, sch_d_flow, sch_cm],
+            [optim_cm, optim_d_flow, optim_e_flow],
+            [sch_cm, sch_d_flow, sch_e_flow],
         )
