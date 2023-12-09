@@ -112,9 +112,11 @@ class DeepClusteringModel(LightningModule):
             return lr_flow
 
         elif optimizer_idx == 2:  # flow encoder
+            self._cm.requires_grad_(False)
             fake_flows, _, s, _ = self(flows, bboxs)
             lr_flow = self._lr(flows, fake_flows)
             lc_total = self._calc_lc(s, bboxs, data_idxs)
+            self._cm.requires_grad_(True)
             return lr_flow + lc_total * self._lmd_cm
 
     def validation_step(self, batch, batch_idx):

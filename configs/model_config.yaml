@@ -25,7 +25,7 @@ autoencoder:
 clustering:
   n_clusters: 8
   ndf: 16
-  alpha: 4  # freedom of student T
+  alpha: 2  # freedom of student T
   roialign:
     output_size: 5
     spatial_scale: 0.125

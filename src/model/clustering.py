@@ -77,15 +77,17 @@ class ClusteringModule(nn.Module):
         # clustering
         s = torch.zeros((bn, sn, self._n_clusters))
         bboxs = bboxs.cpu().numpy()
+        z_all = torch.zeros_like(z_vis)
         for b in range(bn):
             mask_not_nan = ~np.isnan(bboxs[b]).any(axis=1)
             z_spc = self._emb_spacial(z_spc[b][mask_not_nan])
             z = z_vis[b][mask_not_nan] + z_spc
             s[b, : z.shape[0]] = self._student_t(z)
+            z_all[b, : z.shape[0]] = z.detach()
 
         c = s.argmax(dim=2)
 
-        return z, s, c
+        return z_all, s, c
 
     def _convert_bboxes_to_roi_format(self, boxes: torch.Tensor) -> torch.Tensor:
         concat_boxes = torch.cat([b for b in boxes], dim=0)
