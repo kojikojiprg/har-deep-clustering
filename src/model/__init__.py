@@ -90,8 +90,10 @@ class DeepClusteringModel(LightningModule):
     def training_step(self, batch, batch_idx, optimizer_idx):
         _, flows, bboxs, data_idxs = batch
 
+        if np.isnan(bboxs.cpu().numpy()).all():
+            return None
+
         if optimizer_idx == 0:  # clustering
-            self._cm.train()
             fake_flows, _, s, _ = self(flows, bboxs)
 
             if self.current_epoch % self._update_interval == 0:  # update target
@@ -110,7 +112,6 @@ class DeepClusteringModel(LightningModule):
             return lr_flow
 
         elif optimizer_idx == 2:  # flow encoder
-            self._cm.eval()
             fake_flows, _, s, _ = self(flows, bboxs)
             lr_flow = self._lr(flows, fake_flows)
             lc_total = self._calc_lc(s, bboxs, data_idxs)
