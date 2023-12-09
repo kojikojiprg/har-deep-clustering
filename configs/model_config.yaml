@@ -14,7 +14,13 @@ img_size:
 autoencoder:
   i3d:
     final_endpoint: Mixed_3c
-  ndf: 24
+    # NOTE: Below params are defined by final_endpoint.
+    #       Check the output shape before set.
+    nch: 480  # output channel
+    # seq_len: 10  # output length
+    # fx: 80  # output width
+    # fy: 45  # output height
+  nch: 24
 
 clustering:
   n_clusters: 8
@@ -28,5 +34,5 @@ clustering:
 optim:
   lr_rate_ae_frame: 0.0001
   lr_rate_ae_flow: 0.0001
-  lr_rate_cm: 1
+  lr_rate_cm: 0.01
   lmd_cm: 10

@@ -6,14 +6,13 @@ from .i3d import InceptionI3d
 class Encoder(nn.Module):
     def __init__(self, cfg, in_channels):
         super().__init__()
-        cfg = cfg.autoencoder
-
-        self._i3d = InceptionI3d(
-            in_channels=in_channels, final_endpoint=cfg.i3d.final_endpoint
-        )
+        final_endpoint = cfg.autoencoder.i3d.final_endpoint
+        self._i3d = InceptionI3d(in_channels=in_channels, final_endpoint=final_endpoint)
 
     def forward(self, imgs):
-        return self._i3d(imgs)
+        z = self._i3d(imgs)
+
+        return z
 
 
 class Decoder(nn.Module):
@@ -21,7 +20,8 @@ class Decoder(nn.Module):
         super().__init__()
         self._out_w = cfg.img_size.w
         self._out_h = cfg.img_size.h
-        ndf = cfg.autoencoder.ndf
+        i3d_nch = cfg.autoencoder.i3d.nch
+        nch = cfg.autoencoder.nch
         self._out_channels = out_channels
 
         krnl = (1, 4, 4)
@@ -29,29 +29,30 @@ class Decoder(nn.Module):
         pad = (0, 1, 1)
         self.net = nn.Sequential(
             # TODO: setup network automatically
-            nn.ConvTranspose3d(480, ndf * 8, 4, 2, 1, bias=False),
-            nn.BatchNorm3d(ndf * 8),
+            nn.ConvTranspose3d(i3d_nch, nch * 8, 4, 2, 1, bias=False),
+            nn.BatchNorm3d(nch * 8),
             nn.LeakyReLU(0.1, True),
             # (ndf*8) x s*2 x h*2 x w*2
-            nn.ConvTranspose3d(ndf * 8, ndf * 4, krnl, strd, pad, bias=False),
-            nn.BatchNorm3d(ndf * 4),
+            nn.ConvTranspose3d(nch * 8, nch * 4, krnl, strd, pad, bias=False),
+            nn.BatchNorm3d(nch * 4),
             nn.LeakyReLU(0.1, True),
             # (ndf*4) x s*2 x h*4 x w*4
-            nn.ConvTranspose3d(ndf * 4, ndf * 2, krnl, strd, pad, bias=False),
-            nn.BatchNorm3d(ndf * 2),
+            nn.ConvTranspose3d(nch * 4, nch * 2, krnl, strd, pad, bias=False),
+            nn.BatchNorm3d(nch * 2),
             nn.LeakyReLU(0.1, True),
             # (ndf*2) x s*2 x h*8 x w*8
-            nn.ConvTranspose3d(ndf * 2, ndf * 1, 1, 1, 0, bias=False),
-            nn.BatchNorm3d(ndf * 1),
+            nn.ConvTranspose3d(nch * 2, nch * 1, 1, 1, 0, bias=False),
+            nn.BatchNorm3d(nch * 1),
             nn.LeakyReLU(0.1, True),
             # (ndf*1) x s*2 x h*8 x w*8
-            nn.ConvTranspose3d(ndf * 1, out_channels, 1, 1, 0, bias=False),
+            nn.ConvTranspose3d(nch * 1, out_channels, 1, 1, 0, bias=False),
             nn.Tanh(),
             # (out_chennels) x s*2 x h*8 x w*8``
         )
 
     def forward(self, z):
-        return self.net(z)
+        imgs = self.net(z)
+        return imgs
 
 
 class Autoencoder(nn.Module):

@@ -74,16 +74,16 @@ class DeepClusteringModel(LightningModule):
         # calc clustering loss
         lc_total = 0
         # if self.current_epoch + 1 >= self._cfg.clustering_start_epoch:
-        for i, data_idx in enumerate(data_idxs):
-            idx = data_idx * self._n_samples_batch
-            tmp_t = self._cm.target_distribution[idx : idx + self._n_samples_batch]
-            tmp_s = s[i]
+        for b, data_idx in enumerate(data_idxs):
+            ti = data_idx * self._n_samples_batch
+            tmp_t = self._cm.target_distribution[ti : ti + self._n_samples_batch]
+            tmp_s = s[b]
 
-            bboxs_batch = bboxs[i].cpu().numpy()
+            bboxs_batch = bboxs[b].cpu().numpy()
             mask_not_nan = ~np.isnan(bboxs_batch).any(axis=1)
             tmp_t = tmp_t[mask_not_nan]
             tmp_s = tmp_s[mask_not_nan]
-            lc_total = lc_total + self._lc(tmp_s.log(), tmp_t)
+            lc_total = lc_total + self._lc(tmp_s.log(), tmp_t.detach())
 
         return lc_total
 
@@ -91,6 +91,7 @@ class DeepClusteringModel(LightningModule):
         _, flows, bboxs, data_idxs = batch
 
         if optimizer_idx == 0:  # clustering
+            self._cm.train()
             fake_flows, _, s, _ = self(flows, bboxs)
 
             if self.current_epoch % self._update_interval == 0:  # update target
@@ -109,6 +110,7 @@ class DeepClusteringModel(LightningModule):
             return lr_flow
 
         elif optimizer_idx == 2:  # flow encoder
+            self._cm.eval()
             fake_flows, _, s, _ = self(flows, bboxs)
             lr_flow = self._lr(flows, fake_flows)
             lc_total = self._calc_lc(s, bboxs, data_idxs)
