@@ -29,19 +29,17 @@ class ClusteringModule(nn.Module):
         self._emb_visual = nn.Linear(i3d_nch * os * os, cfg.ndf)
 
         # layer for spatial feature
-        self._img_c = nn.Parameter(
-            torch.Tensor((self._img_w / 2, self._img_h / 2)), requires_grad=False
-        )
         self._emb_spacial = nn.Linear(1, cfg.ndf)
 
         # centroids
-        z = torch.normal(0, 0.1, (cfg.n_clusters, 480 * os * os))
-        z = self._emb_visual(z)
-        norms = torch.rand((cfg.n_clusters, 1))
-        norms = self._emb_spacial(norms)
+        # z_vis = torch.normal(0, 0.1, (cfg.n_clusters, 480 * os * os))
+        z_vis = torch.randn((cfg.n_clusters, 480 * os * os))
+        z_vis = self._emb_visual(z_vis)
+        z_spc = torch.rand((cfg.n_clusters, 1))
+        z_spc = self._emb_spacial(z_spc)
         self._centroids = nn.ParameterList(
             [
-                nn.Parameter(z[i] + norms[i], requires_grad=True)
+                nn.Parameter(z_vis[i] + z_spc[i], requires_grad=True)
                 for i in range(self._n_clusters)
             ]
         )
@@ -55,7 +53,7 @@ class ClusteringModule(nn.Module):
     def target_distribution(self):
         return self._target_distribution
 
-    def forward(self, z_vis, bboxs):
+    def forward(self, z_vis, bboxs, norms):
         # visual feature
         fy, fx = z_vis.shape[3:5]
         bn, sn = bboxs.shape[0:2]
@@ -71,20 +69,26 @@ class ClusteringModule(nn.Module):
         z_vis = self._emb_visual(z_vis)
         z_vis = z_vis.view(bn, sn, -1)
 
-        # spacial feature
-        z_spc = self._norm_bbox2centor(bboxs)
-
         # clustering
         s = torch.zeros((bn, sn, self._n_clusters))
         bboxs = bboxs.cpu().numpy()
         z_all = torch.zeros_like(z_vis)
         for b in range(bn):
             mask_not_nan = ~np.isnan(bboxs[b]).any(axis=1)
-            z_spc = self._emb_spacial(z_spc[b][mask_not_nan])
+
+            # spacial feature
+            norms = norms.view(bn, sn, 1)
+            norms = norms[b][mask_not_nan]
+            z_spc = self._emb_spacial(norms)
+
+            # merge feature
             z = z_vis[b][mask_not_nan] + z_spc
-            s[b, : z.shape[0]] = self._student_t(z)
             z_all[b, : z.shape[0]] = z.detach()
 
+            # student T
+            s[b, : z.shape[0]] = self._student_t(z)
+
+        # calc cluster
         c = s.argmax(dim=2)
 
         return z_all, s, c
@@ -130,18 +134,3 @@ class ClusteringModule(nn.Module):
 
                 ti = batch_idx * self._n_samples_batch + i  # target idx
                 self._target_distribution[ti] = targets
-
-    def _norm_bbox2centor(self, bboxs):
-        self._img_c = self._img_c.to(next(self.parameters()).device)
-        bn, sn = bboxs.shape[:2]
-
-        bboxs = bboxs.view(bn, sn, 2, 2)
-        centors = bboxs[:, :, 0] + (bboxs[:, :, 1] - bboxs[:, :, 0]) / 2
-        norms = torch.zeros((bn, sn, 1)).to(next(self.parameters()).device)
-        for b in range(bn):
-            diffs = (centors[b] - self._img_c).clone()
-            norms_batch = torch.linalg.vector_norm(diffs, dim=1)
-            norms_batch = norms_batch / torch.linalg.vector_norm(self._img_c)
-            norms[b] = norms_batch.view(bn, sn, 1)
-
-        return norms.detach()

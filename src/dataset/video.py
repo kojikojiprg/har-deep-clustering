@@ -18,6 +18,7 @@ class VideoDataset(AbstractDataset):
         super().__init__(cfg.seq_len)
         self.w = cfg.img_size.w
         self.h = cfg.img_size.h
+        self._norms = []
         self._start_idxs = []
         self._frame_num_period = 1
 
@@ -36,6 +37,7 @@ class VideoDataset(AbstractDataset):
 
         # bbox
         self._load_bboxs(clip_dirs, frame_size)
+        self._calc_norm_from_ot(clip_dirs, frame_size)
 
         self._calc_start_idxs(frame_lengths)
 
@@ -101,6 +103,22 @@ class VideoDataset(AbstractDataset):
 
         self._n_samples_batch = max_bboxs_num
 
+    def _calc_norm_from_ot(self, clip_dirs, frame_size):
+        rx = self.w / frame_size[0]
+        ry = self.h / frame_size[1]
+        for i, clip_dir in tqdm(enumerate(clip_dirs), ncols=100, desc="coor"):
+            ot_coor = np.load(os.path.join(clip_dir, "coor.npy")).astype(np.float32)
+            ot_coor *= np.array((rx, ry))
+            bboxs_clip = self._bboxs[i]
+            norms_clip = {}
+            for frame_num, bboxs in bboxs_clip.items():
+                bboxs = np.array(bboxs).reshape(-1, 2, 2)
+                cbbox = bboxs[:, 0, :] + (bboxs[:, 1, :] - bboxs[:, 0, :]) / 2
+                norm = np.linalg.norm(cbbox - ot_coor, axis=1)
+                norms_clip[frame_num] = norm
+
+            self._norms.append(norms_clip)
+
     def _calc_start_idxs(self, frame_lengths):
         for clip_idx, frame_length in enumerate(frame_lengths):
             for data_idx in range(
@@ -121,15 +139,18 @@ class VideoDataset(AbstractDataset):
 
         frame_num = data_idx + self._seq_len
         if frame_num in self._bboxs[clip_idx]:
-            bboxs = self._bboxs[clip_idx][frame_num]
-            bboxs = np.array(bboxs)
+            bboxs = np.array(self._bboxs[clip_idx][frame_num])
+            norms = np.array(self._norms[clip_idx][frame_num])
             # append dmy bboxs
             if len(bboxs) < self._n_samples_batch:
                 diff_num = self._n_samples_batch - len(bboxs)
                 dmy_bboxs = [np.full((4,), np.nan) for _ in range(diff_num)]
                 bboxs = np.append(bboxs, dmy_bboxs, axis=0)
+                norms = np.append(norms, [np.nan for _ in range(diff_num)])
         else:
             bboxs = np.full((self._n_samples_batch, 4), np.nan)
+            norms = np.full((self.n_samples_batch,), np.nan)
         bboxs = torch.Tensor(bboxs)
+        norms = torch.Tensor(norms)
 
-        return frames, flows, bboxs, idx
+        return frames, flows, bboxs, norms, idx
