@@ -124,6 +124,10 @@ class VideoDataset(AbstractDataset):
             for data_idx in range(
                 0, frame_length - self._seq_len + 1, self._frame_num_period
             ):
+                frame_num = data_idx + self._seq_len
+                if frame_num not in self._bboxs[clip_idx]:
+                    print(clip_idx, data_idx)
+                    continue
                 self._start_idxs.append((clip_idx, data_idx))
 
     def __len__(self):
@@ -138,18 +142,14 @@ class VideoDataset(AbstractDataset):
         flows = flows.transpose(1, 0)
 
         frame_num = data_idx + self._seq_len
-        if frame_num in self._bboxs[clip_idx]:
-            bboxs = np.array(self._bboxs[clip_idx][frame_num])
-            norms = np.array(self._norms[clip_idx][frame_num])
-            # append dmy bboxs
-            if len(bboxs) < self._n_samples_batch:
-                diff_num = self._n_samples_batch - len(bboxs)
-                dmy_bboxs = [np.full((4,), np.nan) for _ in range(diff_num)]
-                bboxs = np.append(bboxs, dmy_bboxs, axis=0)
-                norms = np.append(norms, [np.nan for _ in range(diff_num)])
-        else:
-            bboxs = np.full((self._n_samples_batch, 4), np.nan)
-            norms = np.full((self.n_samples_batch,), np.nan)
+        bboxs = np.array(self._bboxs[clip_idx][frame_num])
+        norms = np.array(self._norms[clip_idx][frame_num])
+        # append dmy bboxs
+        if len(bboxs) < self._n_samples_batch:
+            diff_num = self._n_samples_batch - len(bboxs)
+            dmy_bboxs = [np.full((4,), np.nan) for _ in range(diff_num)]
+            bboxs = np.append(bboxs, dmy_bboxs, axis=0)
+            norms = np.append(norms, [np.nan for _ in range(diff_num)])
         bboxs = torch.Tensor(bboxs)
         norms = torch.Tensor(norms)
 
