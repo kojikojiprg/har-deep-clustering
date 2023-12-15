@@ -83,10 +83,11 @@ class ClusteringModule(nn.Module):
 
             # merge feature
             z = z_vis[b][mask_not_nan] + z_spc
-            z_all[b, : z.shape[0]] = z.detach()
 
             # student T
             s[b, : z.shape[0]] = self._student_t(z)
+
+            z_all[b, : z.shape[0]] = z.detach()
 
         # calc cluster
         c = s.argmax(dim=2)
@@ -124,13 +125,15 @@ class ClusteringModule(nn.Module):
 
         for b, batch_idx in enumerate(batch_idxs):
             s_sums = s[b].sum(dim=0)
+            probs = torch.zeros((sn, self._n_clusters))
             for i in range(sn):
-                targets = torch.zeros(self._n_clusters)
                 for j in range(self._n_clusters):
                     sij = s[b, i, j]
-                    targets[j] = sij**2 / s_sums[i]
-                t_sums = targets.sum(dim=0)
-                targets = targets / t_sums
+                    probs[i, j] = sij**2 / s_sums[j]
+
+            p_sums = probs.sum(dim=1)
+            for i in range(sn):
+                targets = probs[i] / p_sums[i]
 
                 ti = batch_idx * self._n_samples_batch + i  # target idx
                 self._target_distribution[ti] = targets
