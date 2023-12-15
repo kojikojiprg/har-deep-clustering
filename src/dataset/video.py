@@ -126,7 +126,6 @@ class VideoDataset(AbstractDataset):
             ):
                 frame_num = data_idx + self._seq_len
                 if frame_num not in self._bboxs[clip_idx]:
-                    print(clip_idx, data_idx)
                     continue
                 self._start_idxs.append((clip_idx, data_idx))
 
