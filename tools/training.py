@@ -1,19 +1,16 @@
 import argparse
 import os
 import sys
-from datetime import timedelta
 
 from lightning.pytorch import Trainer
 from lightning.pytorch.loggers import TensorBoardLogger
-from lightning.pytorch.strategies.ddp import DDPStrategy
+
 # from lightning.pytorch.strategies.fsdp import FSDPStrategy
 
 sys.path.append("src")
 from dataset import Datamodule
 from model import DeepClusteringModel
 from utils import file_io
-
-# torch._dynamo.config.suppress_errors = True
 
 
 def parser():
@@ -62,22 +59,22 @@ def main():
             dataset_type = os.path.basename(os.path.dirname(dataset_dir))
         else:
             dataset_type = os.path.basename(dataset_dir)
-    datamodule = Datamodule(
-        dataset_dir, dataset_type, config, "train"
-    )
+    datamodule = Datamodule(dataset_dir, dataset_type, config, "train")
 
     # create model
     print("=> create model")
     n_samples = datamodule.n_samples
     n_samples_batch = datamodule.n_samples_batch
     checkpoint_dir = os.path.join(checkpoint_dir, dataset_type)
-    model = DeepClusteringModel(config, n_samples, n_samples_batch, checkpoint_dir)
-
-    # TODO
-    # model = torch.compile(model, dynamic=True)
+    model = DeepClusteringModel(
+        config,
+        n_samples,
+        n_samples_batch,
+        checkpoint_dir,
+        load_autoencoder_checkpoint=True,
+    )
 
     # training
-    # ddp = DDPStrategy(find_unused_parameters=True, timeout=timedelta(seconds=1800))
     # fsdp = FSDPStrategy(cpu_offload=True)
     trainer = Trainer(
         logger=TensorBoardLogger(log_dir, name=dataset_type),
