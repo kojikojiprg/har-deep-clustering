@@ -1,7 +1,7 @@
 batch_size: 1
 seq_len: 20
 epochs: 200
-accumulate_grad_batches: 512
+accumulate_grad_batches: 128
 
 img_size:
   w: 1280
