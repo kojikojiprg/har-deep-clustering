@@ -94,7 +94,7 @@ class Autoencoder(nn.Module):
 
 
 class AutoencoderModule(LightningModule):
-    def __init__(self, cfg: SimpleNamespace, datatype: str, checkpoint_dir: str):
+    def __init__(self, cfg: SimpleNamespace, datatype: str, checkpoint_dir: str = None):
         super().__init__()
         self._cfg = cfg
 
@@ -109,21 +109,33 @@ class AutoencoderModule(LightningModule):
         self._ae = Autoencoder(cfg, n_channels)
         self._lr = nn.MSELoss()
 
-        self._callbacks = [
-            ModelCheckpoint(
-                checkpoint_dir,
-                filename=f"ae_{datatype}_seq{cfg.seq_len}_lc_min",
-                monitor="lr",
-                mode="min",
-                save_last=True,
-            ),
-        ]
-        last_name = f"ae_{datatype}_seq{cfg.seq_len}_last"
-        self._callbacks[0].CHECKPOINT_NAME_LAST = last_name
+        if checkpoint_dir is not None:
+            self._callbacks = [
+                ModelCheckpoint(
+                    checkpoint_dir,
+                    filename=f"ae_{datatype}_seq{cfg.seq_len}_lc_min",
+                    monitor="lr",
+                    mode="min",
+                    save_last=True,
+                ),
+            ]
+            last_name = f"ae_{datatype}_seq{cfg.seq_len}_last"
+            self._callbacks[0].CHECKPOINT_NAME_LAST = last_name
 
     @property
     def callbacks(self) -> list:
         return self._callbacks
+
+    @property
+    def E(self):
+        return self._ae.E
+
+    @property
+    def D(self):
+        return self._ae.D
+
+    def forward(self, imgs):
+        return self._ae(imgs)
 
     def training_step(self, batch, batch_idx):
         frames, flows, bboxs, norms, data_idxs = batch
