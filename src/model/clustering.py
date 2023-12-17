@@ -20,16 +20,21 @@ class ClusteringModule(nn.Module):
         os = cfg.roialign.output_size
 
         # layers for visual feature
+        self._avg_pool = nn.AvgPool3d((10, 1, 1))
+        self._avg_pool.requires_grad_ = False
         self._roi_align = RoIAlign(
             os,
             cfg.roialign.spatial_scale,
             1,
             cfg.roialign.aligned,
         )
+        self._roi_align.requires_grad_ = False
         self._emb_visual = nn.Linear(i3d_nch * os * os, cfg.ndf)
+        self._emb_visual.requires_grad_ = False
 
         # layer for spatial feature
         self._emb_spacial = nn.Linear(1, cfg.ndf)
+        self._emb_spacial.requires_grad_ = False
 
         # centroids
         # z_vis = torch.normal(0, 0.1, (cfg.n_clusters, 480 * os * os))
@@ -64,7 +69,8 @@ class ClusteringModule(nn.Module):
         bboxs_vis = bboxs_vis.view(bn, -1, 4)
         rois = self._convert_bboxes_to_roi_format(bboxs_vis)
 
-        z_vis = self._roi_align(z_vis[:, :, -1], rois)
+        z_vis = self._avg_pool(z_vis)[:, :, 0]
+        z_vis = self._roi_align(z_vis, rois)
         z_vis = z_vis.view(bn * sn, -1)
         z_vis = self._emb_visual(z_vis)
         z_vis = z_vis.view(bn, sn, -1)
@@ -80,14 +86,18 @@ class ClusteringModule(nn.Module):
             norms = norms.view(bn, sn, 1)
             norms = norms[b][mask_not_nan]
             z_spc = self._emb_spacial(norms)
+            # print("z_vis", z_vis[b][mask_not_nan][0])
+            # print("z_spc", z_spc[0])
 
             # merge feature
             z = z_vis[b][mask_not_nan] + z_spc
 
             # student T
             s[b, : z.shape[0]] = self._student_t(z)
+            # print("s", s[0])
 
             z_all[b, : z.shape[0]] = z.detach()
+            # print("z", z_all[0])
 
         # calc cluster
         c = s.argmax(dim=2)
@@ -125,15 +135,15 @@ class ClusteringModule(nn.Module):
 
         for b, batch_idx in enumerate(batch_idxs):
             s_sums = s[b].sum(dim=0)
-            probs = torch.zeros((sn, self._n_clusters))
+            tmp = torch.zeros((sn, self._n_clusters))
             for i in range(sn):
                 for j in range(self._n_clusters):
                     sij = s[b, i, j]
-                    probs[i, j] = sij**2 / s_sums[j]
+                    tmp[i, j] = sij**2 / s_sums[j]
 
-            p_sums = probs.sum(dim=1)
+            tmp_sums = tmp.sum(dim=1)
             for i in range(sn):
-                targets = probs[i] / p_sums[i]
+                targets = tmp[i] / tmp_sums[i]
 
                 ti = batch_idx * self._n_samples_batch + i  # target idx
                 self._target_distribution[ti] = targets
