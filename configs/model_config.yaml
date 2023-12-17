@@ -3,8 +3,8 @@ seq_len: 20
 # epochs: 120
 # clustering_start_epoch: 21
 epochs: 200
-update_interval: 10
-accumulate_grad_batches: 64
+update_interval: 1
+accumulate_grad_batches: 32
 
 img_size:
   w: 1280
@@ -23,8 +23,8 @@ autoencoder:
   nch: 24
 
 clustering:
-  n_clusters: 8
-  ndf: 16
+  n_clusters: 6
+  ndf: 32
   alpha: 2  # freedom of student T
   roialign:
     output_size: 5
@@ -34,5 +34,5 @@ clustering:
 optim:
   lr_rate_ae_frame: 0.0001
   lr_rate_ae_flow: 0.0001
-  lr_rate_cm: 0.001
+  lr_rate_cm: 0.0001
   lmd_cm: 10
