@@ -1,7 +1,5 @@
 batch_size: 1
 seq_len: 20
-# epochs: 120
-# clustering_start_epoch: 21
 epochs: 200
 update_interval: 1
 accumulate_grad_batches: 32
@@ -17,7 +15,7 @@ autoencoder:
     # NOTE: Below params are defined by final_endpoint.
     #       Check the output shape before set.
     nch: 480  # output channel
-    # seq_len: 10  # output length
+    seq_len: 10  # output length
     # fx: 80  # output width
     # fy: 45  # output height
   nch: 24

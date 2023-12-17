@@ -14,13 +14,14 @@ class ClusteringModule(nn.Module):
         self._img_w = cfg.img_size.w
         self._img_h = cfg.img_size.h
         i3d_nch = cfg.autoencoder.i3d.nch
+        i3d_seq_len = cfg.autoencoder.i3d.seq_len
         cfg = cfg.clustering
         self._n_clusters = cfg.n_clusters
         self._t_alpha = cfg.alpha
         os = cfg.roialign.output_size
 
         # layers for visual feature
-        self._avg_pool = nn.AvgPool3d((10, 1, 1))
+        self._avg_pool = nn.AvgPool3d((i3d_seq_len, 1, 1))
         self._avg_pool.requires_grad_ = False
         self._roi_align = RoIAlign(
             os,
@@ -38,7 +39,7 @@ class ClusteringModule(nn.Module):
 
         # centroids
         # z_vis = torch.normal(0, 0.1, (cfg.n_clusters, 480 * os * os))
-        z_vis = torch.randn((cfg.n_clusters, 480 * os * os))
+        z_vis = torch.randn((cfg.n_clusters, i3d_nch * os * os))
         z_vis = self._emb_visual(z_vis)
         z_spc = torch.rand((cfg.n_clusters, 1))
         z_spc = self._emb_spacial(z_spc)
