@@ -115,6 +115,7 @@ class VideoDataset(AbstractDataset):
                 bboxs = np.array(bboxs).reshape(-1, 2, 2)
                 cbbox = bboxs[:, 0, :] + (bboxs[:, 1, :] - bboxs[:, 0, :]) / 2
                 norm = np.linalg.norm(cbbox - ot_coor, axis=1)
+                norm /= np.linalg.norm((self.w, self.h))
                 norms_clip[frame_num] = norm
 
             self._norms.append(norms_clip)
