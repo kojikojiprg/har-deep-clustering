@@ -106,7 +106,7 @@ class VideoDataset(AbstractDataset):
     def _calc_norm_from_ot(self, clip_dirs, frame_size):
         rx = self.w / frame_size[0]
         ry = self.h / frame_size[1]
-        for i, clip_dir in tqdm(enumerate(clip_dirs), ncols=100, desc="coor"):
+        for i, clip_dir in enumerate(tqdm(clip_dirs, ncols=100, desc="coor")):
             ot_coor = np.load(os.path.join(clip_dir, "coor.npy")).astype(np.float32)
             ot_coor *= np.array((rx, ry))
             bboxs_clip = self._bboxs[i]
