@@ -6,8 +6,8 @@ import numpy as np
 from torch.optim import Adam
 from torch.optim.lr_scheduler import StepLR
 
-from .autoencoder import AutoencoderModule
 from .abstract_deep_clustering import AbstractDeepClusteringModel
+from .autoencoder import AutoencoderModule
 
 
 class DeepClusteringModel(AbstractDeepClusteringModel):
