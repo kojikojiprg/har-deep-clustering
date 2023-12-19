@@ -1,10 +1,13 @@
+from types import SimpleNamespace
 from typing import Union
 
+import numpy as np
 from lightning.pytorch import LightningDataModule
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 
 from .collective_activity import CollectiveActivityDataset
 from .volleyball import VolleyballDataset
+from .video import VideoDataset
 
 
 class Datamodule(LightningDataModule):
@@ -12,33 +15,41 @@ class Datamodule(LightningDataModule):
         self,
         dataset_dir: str,
         dataset_type: str,
-        batch_size: int,
-        seq_len: int,
-        resize_ratio: float,
+        cfg: SimpleNamespace,
         stage: str,
     ):
         super().__init__()
-        self._batch_size = batch_size
         self._dataset_type = dataset_type
+        self._batch_size = cfg.batch_size
 
         self._dataset: Union[CollectiveActivityDataset, VolleyballDataset]
-        self._val_dataset: Union[CollectiveActivityDataset, VolleyballDataset]
+        self._val_dataset: Union[CollectiveActivityDataset, VolleyballDataset, Subset]
         if dataset_type == "collective":
-            self._dataset = CollectiveActivityDataset(
-                dataset_dir, seq_len, resize_ratio, stage
-            )
+            self._dataset = CollectiveActivityDataset(dataset_dir, cfg, stage)
+            if stage == "train":
+                self._val_dataset = Subset(
+                    self._dataset, np.random.randint(0, len(self._dataset), 10).tolist()
+                )
             # if stage == "train":
             #     self._val_dataset = CollectiveActivityDataset(
-            #         dataset_dir, seq_len, resize_ratio, "validation"
+            #         dataset_dir, cfg, "validation"
             #     )
         elif dataset_type == "volleyball":
-            self._dataset = VolleyballDataset(dataset_dir, seq_len, resize_ratio, stage)
+            self._dataset = VolleyballDataset(dataset_dir, cfg, stage)
+            if stage == "train":
+                self._val_dataset = Subset(
+                    self._dataset, np.random.randint(0, len(self._dataset), 10).tolist()
+                )
             # if stage == "train":
             #     self._val_dataset = VolleyballDataset(
             #         dataset_dir, seq_len, resize_ratio, "validation"
             #     )
         elif dataset_type == "video":
-            pass
+            self._dataset = VideoDataset(dataset_dir, cfg, stage)
+            if stage == "train":
+                self._val_dataset = Subset(
+                    self._dataset, np.random.randint(0, len(self._dataset), 10).tolist()
+                )
         else:
             raise KeyError
 
@@ -61,6 +72,9 @@ class Datamodule(LightningDataModule):
         return DataLoader(
             self._val_dataset, self._batch_size, shuffle=False, num_workers=8
         )
+        # return DataLoader(
+        #     self._val_dataset, self._batch_size, shuffle=False, num_workers=8
+        # )
 
     def test_dataloader(self):
         return DataLoader(self._dataset, shuffle=False, num_workers=8)

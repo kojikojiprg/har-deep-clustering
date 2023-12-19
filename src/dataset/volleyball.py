@@ -1,6 +1,7 @@
 import os
 import sys
 from glob import glob
+from types import SimpleNamespace
 
 import cv2
 import numpy as np
@@ -16,10 +17,10 @@ TRAIN_SET = [i for i in range(55) if i not in VALIDATION_SET and i not in TEST_S
 
 
 class VolleyballDataset(AbstractDataset):
-    def __init__(self, dataset_dir: str, seq_len: int, resize_ratio: float, stage: str):
-        super().__init__(seq_len, resize_ratio)
-        self.w = int(1280 * resize_ratio)
-        self.h = int(720 * resize_ratio)
+    def __init__(self, dataset_dir: str, cfg: SimpleNamespace, stage: str):
+        super().__init__(cfg.seq_len)
+        self.w = cfg.img_size.w
+        self.h = cfg.img_size.h
         self._create_dataset(dataset_dir, stage)
 
     def _create_dataset(self, dataset_dir, stage):
@@ -91,7 +92,7 @@ class VolleyballDataset(AbstractDataset):
             target_frame_num = 21  # target frame num is 21 in each video
             start_frame_num = target_frame_num - self._seq_len + 1
             flows = np.load(os.path.join(clip_dir, "flow.npy"))
-            flows = flows[start_frame_num : target_frame_num + 1]
+            flows = flows[start_frame_num: target_frame_num + 1]
             flows_resized = []
             for flow in flows:
                 flow = cv2.resize(flow, (self.w, self.h))
@@ -116,7 +117,7 @@ class VolleyballDataset(AbstractDataset):
             bboxs_clip = []
             for i in range(2, len(line), 5):
                 try:
-                    x, y, w, h = list(map(int, line[i : i + 4]))
+                    x, y, w, h = list(map(int, line[i: i + 4]))
                 except ValueError:
                     break  # this line has space in last
                 b = np.array([x, y, x + w, y + h], dtype=np.float64)

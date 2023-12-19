@@ -1,11 +1,13 @@
 .vscode
 data/
 models/
-!modules/individual/models/
-!modules/group/models/
 videos/
 notebooks/
 logs/
+images/
+checkpoints/
+*.png
+*.out
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

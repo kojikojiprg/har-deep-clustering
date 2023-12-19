@@ -1,8 +1,7 @@
 batch_size: 1
 seq_len: 20
 epochs: 200
-update_interval: 1
-accumulate_grad_batches: 32
+accumulate_grad_batches: 128
 
 img_size:
   w: 1280
@@ -15,22 +14,10 @@ autoencoder:
     # NOTE: Below params are defined by final_endpoint.
     #       Check the output shape before set.
     nch: 480  # output channel
-    seq_len: 10  # output length
+    # seq_len: 10  # output length
     # fx: 80  # output width
     # fy: 45  # output height
   nch: 24
 
-clustering:
-  n_clusters: 6
-  ndf: 32
-  alpha: 2  # freedom of student T
-  roialign:
-    output_size: 5
-    spatial_scale: 0.125
-    aligned: True
-
 optim:
-  lr_rate_ae_frame: 0.0001
-  lr_rate_ae_flow: 0.0001
-  lr_rate_cm: 0.0001
-  lmd_cm: 10
+  lr: 0.0001

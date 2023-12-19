@@ -6,12 +6,11 @@ from torch.utils.data import Dataset
 
 
 class AbstractDataset(Dataset, metaclass=ABCMeta):
-    def __init__(self, seq_len: int, resize_ratio: float):
+    def __init__(self, seq_len: int):
         super().__init__()
         self._default_float_dtype = torch.get_default_dtype()
 
         self._seq_len = seq_len
-        self._resize_ratio = resize_ratio
         self._frames: list = []
         self._flows: list = []
         self._bboxs: list = []

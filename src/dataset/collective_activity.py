@@ -1,6 +1,7 @@
 import os
 import sys
 from glob import glob
+from types import SimpleNamespace
 
 import cv2
 import numpy as np
@@ -12,10 +13,10 @@ from dataset.abstract_dataset import AbstractDataset
 
 
 class CollectiveActivityDataset(AbstractDataset):
-    def __init__(self, dataset_dir: str, seq_len: int, resize_ratio: float, stage: str):
-        super().__init__(seq_len, resize_ratio)
-        self.w = int(720 * resize_ratio)
-        self.h = int(480 * resize_ratio)
+    def __init__(self, dataset_dir: str, cfg: SimpleNamespace, stage: str):
+        super().__init__(cfg.seq_len)
+        self.w = cfg.img_size.w
+        self.h = cfg.img_size.h
         self._target_idxs = None
         self._clip_names = None
 
@@ -31,6 +32,7 @@ class CollectiveActivityDataset(AbstractDataset):
 
     def _create_dataset(self, dataset_dir, stage):
         clip_dirs = sorted(glob(os.path.join(dataset_dir, "*")))
+        # clip_dirs = clip_dirs[:4]
 
         annotations, group_classes = self._load_annotations(clip_dirs)
         clip_names = self._split_train_test(group_classes, stage)
@@ -42,7 +44,7 @@ class CollectiveActivityDataset(AbstractDataset):
 
         # bbox
         self._extract_bbox(annotations, clip_names, frame_sizes)
-        self._calc_idx_ranges(annotations, clip_names)
+        self._calc_target_idxs(annotations, clip_names)
 
     def _load_annotations(self, clip_dirs):
         annotations = {}
@@ -50,7 +52,9 @@ class CollectiveActivityDataset(AbstractDataset):
         for clip_dir in clip_dirs:
             # load from txt file
             ann = np.loadtxt(os.path.join(clip_dir, "annotations.txt"), delimiter="\t")
-            mask = ((ann[:, 0].astype(int) - 1) % 10 == 0) & (ann[:, 0].astype(int) > self._seq_len)
+            mask = ((ann[:, 0].astype(int) - 1) % 10 == 0) & (
+                ann[:, 0].astype(int) > self._seq_len
+            )
             ann = ann[mask]
             n_last_frame = ann[-1, 0]
 
@@ -145,7 +149,7 @@ class CollectiveActivityDataset(AbstractDataset):
 
         self._n_samples_batch = max_n_samples
 
-    def _calc_idx_ranges(self, annotations, clip_names):
+    def _calc_target_idxs(self, annotations, clip_names):
         target_idxs = []
         for clip_idx, clip_name in enumerate(clip_names):
             ann = annotations[clip_name]["annotation"]
@@ -161,7 +165,7 @@ class CollectiveActivityDataset(AbstractDataset):
         clip_idx, target_idx = self._target_idxs[idx]
         frames = self._frames[clip_idx][target_idx - self._seq_len: target_idx]
         frames = frames.transpose(1, 0)
-        flows = self._flows[clip_idx][target_idx - self._seq_len : target_idx]
+        flows = self._flows[clip_idx][target_idx - self._seq_len: target_idx]
         flows = flows.transpose(1, 0)
         try:
             bboxs = self._bboxs[clip_idx][target_idx]
