@@ -4,6 +4,7 @@ models/
 videos/
 notebooks/
 logs/
+out/
 images/
 checkpoints/
 *.png
