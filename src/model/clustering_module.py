@@ -10,6 +10,9 @@ class ClusteringModule(nn.Module):
         self._n_samples = n_samples
         self._n_samples_batch = n_samples_batch
 
+        # self._lmd_vis = 1  # v0
+        self._lmd_vis = 4  # v1, v2
+
         # get configs
         self._img_w = cfg.img_size.w
         self._img_h = cfg.img_size.h
@@ -22,30 +25,32 @@ class ClusteringModule(nn.Module):
 
         # layers for visual feature
         self._avg_pool = nn.AvgPool3d((i3d_seq_len, 1, 1))
-        self._avg_pool.requires_grad_ = False
         self._roi_align = RoIAlign(
             os,
             cfg.roialign.spatial_scale,
             1,
             cfg.roialign.aligned,
         )
-        self._roi_align.requires_grad_ = False
         self._emb_visual = nn.Linear(i3d_nch * os * os, cfg.ndf)
-        self._emb_visual.requires_grad_ = False
 
         # layer for spatial feature
-        self._emb_spacial = nn.Linear(1, cfg.ndf)
-        self._emb_spacial.requires_grad_ = False
+        self._add_spc_feature = cfg.add_spacial_feature
+        if self._add_spc_feature:
+            self._emb_spacial = nn.Linear(1, cfg.ndf)
 
         # centroids
         # z_vis = torch.normal(0, 0.1, (cfg.n_clusters, 480 * os * os))
         z_vis = torch.randn((cfg.n_clusters, i3d_nch * os * os))
         z_vis = self._emb_visual(z_vis)
-        z_spc = torch.rand((cfg.n_clusters, 1))
-        z_spc = self._emb_spacial(z_spc)
+        if self._add_spc_feature:
+            z_spc = torch.rand((cfg.n_clusters, 1))
+            z_spc = self._emb_spacial(z_spc)
+            z = z_vis + z_spc
+        else:
+            z = z_vis
         self._centroids = nn.ParameterList(
             [
-                nn.Parameter(z_vis[i] + z_spc[i], requires_grad=True)
+                nn.Parameter(z[i], requires_grad=True)
                 for i in range(self._n_clusters)
             ]
         )
@@ -84,21 +89,24 @@ class ClusteringModule(nn.Module):
             mask_not_nan = ~np.isnan(bboxs[b]).any(axis=1)
 
             # spacial feature
-            norms = norms.view(bn, sn, 1)
-            norms = norms[b][mask_not_nan]
-            z_spc = self._emb_spacial(norms)
-            # print("z_vis", z_vis[b][mask_not_nan][0])
-            # print("z_spc", z_spc[0])
+            if self._add_spc_feature:
+                norms = norms.view(bn, sn, 1)
+                norms = norms[b][mask_not_nan]
+                z_spc = self._emb_spacial(norms)
+                # print("z_vis", z_vis[b][mask_not_nan][0, :4])
+                # print("z_spc", z_spc[0, :4])
 
-            # merge feature
-            z = z_vis[b][mask_not_nan] + z_spc
+                # merge feature
+                z = z_vis[b][mask_not_nan] * self._lmd_vis + z_spc
+            else:
+                z = z_vis[b][mask_not_nan]
 
             # student T
             s[b, : z.shape[0]] = self._student_t(z)
-            # print("s", s[0])
+            # print("s", s[0, :, :4])
 
             z_all[b, : z.shape[0]] = z.detach()
-            # print("z", z_all[0])
+            # print("z", z_all[0, :, :4])
 
         # calc cluster
         c = s.argmax(dim=2)
