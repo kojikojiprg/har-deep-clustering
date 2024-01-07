@@ -19,7 +19,7 @@ def parser():
     parser.add_argument("datatype", type=str, help="'frame' or 'flow'")
 
     # optional
-    parser.add_argument("-dt", "--dataset_type", type=str, required=False, default=None)
+    parser.add_argument("-dt", "--dataset_type", type=str, required=False, default="video")
     parser.add_argument(
         "-mc",
         "--model_config_path",
