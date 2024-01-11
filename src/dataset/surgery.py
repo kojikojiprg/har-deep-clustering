@@ -14,7 +14,7 @@ from utils import json_handler, video
 
 
 class SurgeryDataset(AbstractDataset):
-    def __init__(self, dataset_dir: str, cfg: SimpleNamespace, stage: str):
+    def __init__(self, dataset_dir: str, cfg: SimpleNamespace):
         super().__init__(cfg.seq_len)
         self.w = cfg.img_size.w
         self.h = cfg.img_size.h
@@ -22,9 +22,9 @@ class SurgeryDataset(AbstractDataset):
         self._start_idxs = []
         self._frame_num_period = 1
 
-        self._create_dataset(dataset_dir, stage)
+        self._create_dataset(dataset_dir)
 
-    def _create_dataset(self, dataset_dir, stage):
+    def _create_dataset(self, dataset_dir):
         clip_dirs = sorted(glob(os.path.join(dataset_dir, "*/")))
         clip_paths = sorted(glob(os.path.join(dataset_dir, "*.mp4")))
         # clip_dirs = clip_dirs[:1]

@@ -49,7 +49,7 @@ class Datamodule(LightningDataModule):
             #     )
         else:
             dataset_dir = os.path.join(dataset_dir, stage)
-            self._dataset = SurgeryDataset(dataset_dir, cfg, stage)
+            self._dataset = SurgeryDataset(dataset_dir, cfg)
             if stage == "train":
                 self._val_dataset = Subset(
                     self._dataset, np.random.randint(0, len(self._dataset), 10).tolist()
