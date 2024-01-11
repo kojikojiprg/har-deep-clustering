@@ -1,3 +1,4 @@
+import os
 from types import SimpleNamespace
 from typing import Union
 
@@ -6,8 +7,8 @@ from lightning.pytorch import LightningDataModule
 from torch.utils.data import DataLoader, Subset
 
 from .collective_activity import CollectiveActivityDataset
+from .surgery import SurgeryDataset
 from .volleyball import VolleyballDataset
-from .video import VideoDataset
 
 
 class Datamodule(LightningDataModule):
@@ -22,8 +23,10 @@ class Datamodule(LightningDataModule):
         self._dataset_type = dataset_type
         self._batch_size = cfg.batch_size
 
-        self._dataset: Union[CollectiveActivityDataset, VolleyballDataset]
-        self._val_dataset: Union[CollectiveActivityDataset, VolleyballDataset, Subset]
+        self._dataset: Union[
+            CollectiveActivityDataset, VolleyballDataset, SurgeryDataset
+        ]
+        self._val_dataset: Subset
         if dataset_type == "collective":
             self._dataset = CollectiveActivityDataset(dataset_dir, cfg, stage)
             if stage == "train":
@@ -44,14 +47,13 @@ class Datamodule(LightningDataModule):
             #     self._val_dataset = VolleyballDataset(
             #         dataset_dir, seq_len, resize_ratio, "validation"
             #     )
-        elif dataset_type == "video":
-            self._dataset = VideoDataset(dataset_dir, cfg, stage)
+        else:
+            dataset_dir = os.path.join(dataset_dir, stage)
+            self._dataset = SurgeryDataset(dataset_dir, cfg, stage)
             if stage == "train":
                 self._val_dataset = Subset(
                     self._dataset, np.random.randint(0, len(self._dataset), 10).tolist()
                 )
-        else:
-            raise KeyError
 
     @property
     def n_samples(self):
@@ -72,9 +74,6 @@ class Datamodule(LightningDataModule):
         return DataLoader(
             self._val_dataset, self._batch_size, shuffle=False, num_workers=8
         )
-        # return DataLoader(
-        #     self._val_dataset, self._batch_size, shuffle=False, num_workers=8
-        # )
 
     def test_dataloader(self):
         return DataLoader(self._dataset, shuffle=False, num_workers=8)
