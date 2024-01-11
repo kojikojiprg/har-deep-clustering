@@ -60,7 +60,7 @@ def main():
             dataset_type = os.path.basename(dataset_dir)
 
     # get config
-    if version is None or version == 0:
+    if version is None:
         model_config_path = os.path.join(
             model_config_dir, dataset_type, "model_config.yaml"
         )
@@ -72,7 +72,9 @@ def main():
 
     # create dataset
     print(f"=> creating dataset from {dataset_dir}")
-    datamodule = Datamodule(dataset_dir, dataset_type, config, "train", augment_data=True)
+    datamodule = Datamodule(
+        dataset_dir, dataset_type, config, "train", augment_data=True
+    )
 
     # create model
     print("=> create model")
