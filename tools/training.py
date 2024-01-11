@@ -72,7 +72,7 @@ def main():
 
     # create dataset
     print(f"=> creating dataset from {dataset_dir}")
-    datamodule = Datamodule(dataset_dir, dataset_type, config, "train")
+    datamodule = Datamodule(dataset_dir, dataset_type, config, "train", augment_data=True)
 
     # create model
     print("=> create model")
