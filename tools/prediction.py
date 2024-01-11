@@ -1,16 +1,18 @@
 import argparse
 import os
 import sys
-from datetime import timedelta
 
+import cv2
+import matplotlib.pyplot as plt
+import numpy as np
 from lightning.pytorch import Trainer
-from lightning.pytorch.loggers import TensorBoardLogger
-from lightning.pytorch.strategies.ddp import DDPStrategy
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
 
 sys.path.append("src")
 from dataset import Datamodule
-from model import DeepClusteringModel
-from utils import file_io
+from model import select_deep_clustering_module
+from utils import file_io, json_handler, video
 
 
 def parser():
@@ -18,15 +20,18 @@ def parser():
 
     # positional
     parser.add_argument("dataset_dir", type=str)
+    parser.add_argument("model_type", type=str, help="'frame_flow' or 'flow'")
+    parser.add_argument("stage", type=str, help="'train' or 'test'")
 
     # optional
-    parser.add_argument("--dataset_type", type=str, required=False, default=None)
+    parser.add_argument("-dt", "--dataset_type", type=str, required=False, default=None)
+    parser.add_argument("-v", "--version", type=int, required=False, default=None)
     parser.add_argument(
         "-mc",
-        "--model_config_path",
+        "--model_config_dir",
         type=str,
         required=False,
-        default="configs/model_config.yaml",
+        default="configs/",
     )
     parser.add_argument("--checkpoint_dir", type=str, required=False, default="models/")
     parser.add_argument("--log_dir", type=str, required=False, default="logs/")
@@ -43,51 +48,148 @@ def main():
     # get args
     args = parser()
     dataset_dir = args.dataset_dir
+    model_type = args.model_type
+    stage = args.stage
     dataset_type = args.dataset_type
-    model_config_path = args.model_config_path
+    version = args.version
+    model_config_dir = args.model_config_dir
     checkpoint_dir = args.checkpoint_dir
     log_dir = args.log_dir
     gpu_ids = args.gpus
 
-    # get config
-    config = file_io.get_config(model_config_path)
-    batch_size = config.batch_size
-    seq_len = config.seq_len
-    resize_ratio = config.resize_ratio
-
-    # create dataset
-    print(f"=> creating dataset from {dataset_dir}")
     if dataset_type is None:
         if dataset_dir.endswith("/"):
             dataset_type = os.path.basename(os.path.dirname(dataset_dir))
         else:
             dataset_type = os.path.basename(dataset_dir)
+
+    # get config
+    if version is None:
+        model_config_path = os.path.join(
+            model_config_dir, dataset_type, "model_config.yaml"
+        )
+    else:
+        model_config_path = os.path.join(
+            model_config_dir, dataset_type, f"model_config-v{version}.yaml"
+        )
+    config = file_io.get_config(model_config_path)
+
+    # create dataset
+    print(f"=> creating dataset from {dataset_dir}")
     datamodule = Datamodule(
-        dataset_dir, dataset_type, batch_size, seq_len, resize_ratio, "test"
+        dataset_dir, dataset_type, config, stage, augment_data=False
     )
 
     # create model
-    print("=> load model")
+    print("=> create model")
     n_samples = datamodule.n_samples
     n_samples_batch = datamodule.n_samples_batch
     checkpoint_dir = os.path.join(checkpoint_dir, dataset_type)
-    model = DeepClusteringModel(config, n_samples, n_samples_batch, checkpoint_dir)
+    model = select_deep_clustering_module(
+        model_type,
+        config,
+        n_samples,
+        n_samples_batch,
+        checkpoint_dir,
+        version,
+        load_autoencoder_checkpoint=True,
+    )
 
-    # predict
-    ddp = DDPStrategy(find_unused_parameters=True, timeout=timedelta(seconds=120))
+    checkpoint_dir = "models"
+    checkpoint_path = os.path.join(
+        checkpoint_dir,
+        dataset_type,
+        model_type,
+        f"dcm_seq{config.seq_len}_last-v{version}.ckpt",
+    )
+
+    # predicting
+    print("=> predicting")
+    log_dir = os.path.join(log_dir, dataset_type)
     trainer = Trainer(
-        logger=TensorBoardLogger(log_dir, name=dataset_type),
-        callbacks=model.callbacks,
-        max_epochs=config.epochs,
-        # accumulate_grad_batches=config.accumulate_grad_batches,
+        logger=False,
         accelerator="gpu",
         devices=gpu_ids,
-        strategy=ddp,
+        strategy="ddp",
     )
-    print("=> predicting")
     pred_results = trainer.predict(
-        model, datamodule=datamodule, return_predictions=True
+        model, datamodule=datamodule, return_predictions=True, ckpt_path=checkpoint_path
     )
+
+    print("=> plotting scatter")
+    save_dir = os.path.join("out", dataset_type, model_type, f"v{version}")
+    os.makedirs(save_dir, exist_ok=True)
+
+    # collect z
+    cluster_idxs = {c: [] for c in range(config.clustering.n_clusters)}
+    z_lst = []
+    i = 0
+    for results in pred_results:
+        for result in results:
+            c = result["c"]
+            z = result["z"]
+            cluster_idxs[c].append(i)
+            z_lst.append(z)
+            i += 1
+
+    # pca
+    cmap = plt.get_cmap("tab10")
+    pca = PCA(n_components=2)
+    emb_pca = pca.fit_transform(z_lst)
+    for c, idxs in cluster_idxs.items():
+        if len(idxs) > 0:
+            plt.scatter(
+                emb_pca[idxs, 0], emb_pca[idxs, 1], s=3, label=c, alpha=0.7, color=cmap(c)
+            )
+    plt.legend(bbox_to_anchor=(1.01, 1), loc="upper left", borderaxespad=0)
+    pca_path = os.path.join(save_dir, f"{stage}-v{version}-pca.png")
+    plt.savefig(pca_path, bbox_inches="tight")
+    plt.close()
+
+    # t-sne
+    tsne = TSNE(n_components=2)
+    emb_tsne = tsne.fit_transform(np.array(z_lst))
+    for c, idxs in cluster_idxs.items():
+        if len(idxs) > 0:
+            plt.scatter(
+                emb_tsne[idxs, 0], emb_tsne[idxs, 1], s=3, label=c, alpha=0.7, color=cmap(c)
+            )
+    plt.legend(bbox_to_anchor=(1.01, 1), loc="upper left", borderaxespad=0)
+    tsne_path = os.path.join(save_dir, f"{stage}-v{version}-tsne.png")
+    plt.savefig(tsne_path, bbox_inches="tight")
+    plt.close()
+
+    print("=> writing video")
+    path = os.path.join(save_dir, f"{stage}-v{version}.mp4")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    w = datamodule.dataset.w
+    h = datamodule.dataset.h
+    wrt = video.Writer(path, 30, (w, h))
+
+    for frame, _, _, _, idx in iter(datamodule.dataset):
+        frame = frame.cpu().numpy().transpose(1, 2, 3, 0)[-1]
+        frame = ((frame + 1) / 2 * 255).astype(np.uint8).copy()
+        results = pred_results[idx]
+        for result in results:
+            bbox = result["bbox"]
+            c = result["c"]
+            if np.any(np.isnan(bbox)):
+                continue
+
+            pt1 = np.array((bbox[0], bbox[1])).astype(int)
+            pt2 = np.array((bbox[2], bbox[3])).astype(int)
+            color = (np.array(cmap(c)) * 255)[:3].astype(np.uint8).tolist()
+            color = color[::-1]  # rgb to bgr
+            frame = cv2.rectangle(frame, pt1, pt2, color, 2)
+            frame = cv2.putText(
+                frame, f"{c}", pt1, cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2, cv2.LINE_4
+            )
+        wrt.write(frame)
+    del wrt
+
+    print("=> saving pred results")
+    path = os.path.join(save_dir, f"{stage}-v{version}.json")
+    json_handler.dump(pred_results, path)
 
     print("=> complete")
 
