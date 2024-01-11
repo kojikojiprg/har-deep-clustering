@@ -20,6 +20,7 @@ class AbstractDeepClusteringModel(LightningModule, metaclass=ABCMeta):
         n_samples: int,
         n_samples_batch: int,
         checkpoint_dir: Optional[str] = None,
+        version: Optional[int] = None,
     ):
         super().__init__()
         self.cfg = cfg
@@ -35,16 +36,20 @@ class AbstractDeepClusteringModel(LightningModule, metaclass=ABCMeta):
 
         if checkpoint_dir is not None:
             checkpoint_dir = os.path.join(checkpoint_dir, model_type)
+            if version is not None:
+                vstr = f"-v{version}"
+            else:
+                vstr = "-v0"
             self._callbacks = [
                 ModelCheckpoint(
                     checkpoint_dir,
-                    filename=f"dcm_seq{cfg.seq_len}_lc_min",
+                    filename=f"dcm_seq{cfg.seq_len}_lc_min{vstr}",
                     monitor="lc",
                     mode="min",
                     save_last=True,
                 ),
             ]
-            last_name = f"dcm_seq{cfg.seq_len}_last"
+            last_name = f"dcm_seq{cfg.seq_len}_last{vstr}"
             self._callbacks[0].CHECKPOINT_NAME_LAST = last_name
 
     @property

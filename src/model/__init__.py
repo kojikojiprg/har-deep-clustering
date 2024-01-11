@@ -12,6 +12,7 @@ def select_deep_clustering_module(
     n_samples: int,
     n_samples_batch: int,
     checkpoint_dir: Optional[str] = None,
+    version: Optional[int] = None,
     load_autoencoder_checkpoint: bool = True,
 ):
     if model_type == "frame_flow":
@@ -21,6 +22,7 @@ def select_deep_clustering_module(
             n_samples,
             n_samples_batch,
             checkpoint_dir,
+            version,
             load_autoencoder_checkpoint,
         )
     elif model_type == "flow":
@@ -30,6 +32,7 @@ def select_deep_clustering_module(
             n_samples,
             n_samples_batch,
             checkpoint_dir,
+            version,
             load_autoencoder_checkpoint,
         )
     else:

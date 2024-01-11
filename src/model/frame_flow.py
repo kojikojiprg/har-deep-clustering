@@ -18,9 +18,12 @@ class DeepClusteringModel(AbstractDeepClusteringModel):
         n_samples: int,
         n_samples_batch: int,
         checkpoint_dir: Optional[str] = None,
+        version: Optional[int] = None,
         load_autoencoder_checkpoint: bool = True,
     ):
-        super().__init__(model_type, cfg, n_samples, n_samples_batch, checkpoint_dir)
+        super().__init__(
+            model_type, cfg, n_samples, n_samples_batch, checkpoint_dir, version
+        )
         if load_autoencoder_checkpoint:
             ae_frame_ckpt = os.path.join(
                 checkpoint_dir, "autoencoder", f"ae_frame_seq{cfg.seq_len}_last.ckpt"

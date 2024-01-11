@@ -22,12 +22,13 @@ def parser():
 
     # optional
     parser.add_argument("-dt", "--dataset_type", type=str, required=False, default=None)
+    parser.add_argument("-v", "--version", type=int, required=False, default=None)
     parser.add_argument(
         "-mc",
-        "--model_config_path",
+        "--model_config_dir",
         type=str,
         required=False,
-        default="configs/model_config.yaml",
+        default="configs/",
     )
     parser.add_argument("--checkpoint_dir", type=str, required=False, default="models/")
     parser.add_argument("--log_dir", type=str, required=False, default="logs/")
@@ -46,21 +47,31 @@ def main():
     dataset_dir = args.dataset_dir
     model_type = args.model_type
     dataset_type = args.dataset_type
-    model_config_path = args.model_config_path
+    version = args.version
+    model_config_dir = args.model_config_dir
     checkpoint_dir = args.checkpoint_dir
     log_dir = args.log_dir
     gpu_ids = args.gpus
 
-    # get config
-    config = file_io.get_config(model_config_path)
-
-    # create dataset
-    print(f"=> creating dataset from {dataset_dir}")
     if dataset_type is None:
         if dataset_dir.endswith("/"):
             dataset_type = os.path.basename(os.path.dirname(dataset_dir))
         else:
             dataset_type = os.path.basename(dataset_dir)
+
+    # get config
+    if version is None or version == 0:
+        model_config_path = os.path.join(
+            model_config_dir, dataset_type, "model_config.yaml"
+        )
+    else:
+        model_config_path = os.path.join(
+            model_config_dir, dataset_type, f"model_config-v{version}.yaml"
+        )
+    config = file_io.get_config(model_config_path)
+
+    # create dataset
+    print(f"=> creating dataset from {dataset_dir}")
     datamodule = Datamodule(dataset_dir, dataset_type, config, "train")
 
     # create model
@@ -74,6 +85,7 @@ def main():
         n_samples,
         n_samples_batch,
         checkpoint_dir,
+        version,
         load_autoencoder_checkpoint=True,
     )
 
