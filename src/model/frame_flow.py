@@ -50,17 +50,17 @@ class DeepClusteringModel(AbstractDeepClusteringModel):
         return fake_frames, fake_flows, z, s, c
 
     def training_step(self, batch, batch_idx, optimizer_idx):
-        frames, flows, bboxs, norms, data_idxs = batch
+        frames, flows, bboxs, norms, idxs = batch
 
         if optimizer_idx == 0:  # clustering
             _, _, _, s, _ = self(frames, flows, bboxs, norms)
 
             if self.current_epoch % self.update_interval == 0:  # update target
-                self.cm.update_target_distribution(s, data_idxs)
+                self.cm.update_target_distribution(s, idxs)
 
             # if self.current_epoch + 1 < self._cfg.clustering_start_epoch:
             #     return None  # skip training clustering module
-            lc_total = self.calc_lc(s, bboxs, data_idxs)
+            lc_total = self.calc_lc(s, bboxs, idxs)
             self.log("lc", lc_total, prog_bar=True, on_epoch=True)
             return lc_total
 
@@ -68,7 +68,7 @@ class DeepClusteringModel(AbstractDeepClusteringModel):
             self.cm.requires_grad_(False)
             fake_frames, _, _, s, _ = self(frames, flows, bboxs, norms)
             lr_frame = self.lr(frames, fake_frames)
-            lc_total = self.calc_lc(s, bboxs, data_idxs)
+            lc_total = self.calc_lc(s, bboxs, idxs)
             self.cm.requires_grad_(True)
             return lr_frame + lc_total * self.lmd_cm
 
@@ -82,7 +82,7 @@ class DeepClusteringModel(AbstractDeepClusteringModel):
             self.cm.requires_grad_(False)
             _, fake_flows, _, s, _ = self(frames, flows, bboxs, norms)
             lr_flow = self.lr(flows, fake_flows)
-            lc_total = self.calc_lc(s, bboxs, data_idxs)
+            lc_total = self.calc_lc(s, bboxs, idxs)
             self.cm.requires_grad_(True)
             return lr_flow + lc_total * self.lmd_cm
 
@@ -96,7 +96,7 @@ class DeepClusteringModel(AbstractDeepClusteringModel):
     #     frames, flows, bboxs, norms, data_idxs = batch
 
     def predict_step(self, batch, batch_idx):
-        frames, flows, bboxs, norms, data_idxs = batch
+        frames, flows, bboxs, norms, idxs = batch
         batch_size = frames.shape[0]
 
         _, _, z, _, c = self(frames, flows, bboxs.clone(), norms)
@@ -107,10 +107,11 @@ class DeepClusteringModel(AbstractDeepClusteringModel):
                 if np.any(np.isnan(bbox)):
                     continue
                 data = {
-                    "sample_num": (data_idxs[i] + j).item(),
+                    "idx": idxs[i].item(),
+                    "sample_idx": j,
                     "z": z[i, j].cpu().numpy(),
                     "bbox": bbox,
-                    "c": c[i, j].item(),
+                    "label": c[i, j].item(),
                 }
                 preds.append(data)
 

@@ -26,6 +26,10 @@ class SurgeryDataset(AbstractDataset):
 
         self._create_dataset(dataset_dir, augment_data)
 
+    @property
+    def start_idxs(self):
+        return self._start_idxs
+
     def _create_dataset(self, dataset_dir, augment_data):
         clip_dirs = sorted(glob(os.path.join(dataset_dir, "*/")))
         clip_paths = sorted(glob(os.path.join(dataset_dir, "*.mp4")))

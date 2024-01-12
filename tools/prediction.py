@@ -126,7 +126,7 @@ def main():
     i = 0
     for results in pred_results:
         for result in results:
-            c = result["c"]
+            c = result["label"]
             z = result["z"]
             cluster_idxs[c].append(i)
             z_lst.append(z)
@@ -139,7 +139,12 @@ def main():
     for c, idxs in cluster_idxs.items():
         if len(idxs) > 0:
             plt.scatter(
-                emb_pca[idxs, 0], emb_pca[idxs, 1], s=3, label=c, alpha=0.7, color=cmap(c)
+                emb_pca[idxs, 0],
+                emb_pca[idxs, 1],
+                s=3,
+                label=c,
+                alpha=0.7,
+                color=cmap(c),
             )
     plt.legend(bbox_to_anchor=(1.01, 1), loc="upper left", borderaxespad=0)
     pca_path = os.path.join(save_dir, f"{stage}-v{version}-pca.png")
@@ -152,7 +157,12 @@ def main():
     for c, idxs in cluster_idxs.items():
         if len(idxs) > 0:
             plt.scatter(
-                emb_tsne[idxs, 0], emb_tsne[idxs, 1], s=3, label=c, alpha=0.7, color=cmap(c)
+                emb_tsne[idxs, 0],
+                emb_tsne[idxs, 1],
+                s=3,
+                label=c,
+                alpha=0.7,
+                color=cmap(c),
             )
     plt.legend(bbox_to_anchor=(1.01, 1), loc="upper left", borderaxespad=0)
     tsne_path = os.path.join(save_dir, f"{stage}-v{version}-tsne.png")
@@ -172,7 +182,7 @@ def main():
         results = pred_results[idx]
         for result in results:
             bbox = result["bbox"]
-            c = result["c"]
+            c = result["label"]
             if np.any(np.isnan(bbox)):
                 continue
 
@@ -190,6 +200,26 @@ def main():
     print("=> saving pred results")
     path = os.path.join(save_dir, f"{stage}-v{version}.json")
     json_handler.dump(pred_results, path)
+
+    pred_results_clips = {}
+    for idx, (clip_idx, data_idx) in enumerate(datamodule.dataset.start_idxs):
+        if clip_idx + 1 not in pred_results_clips:
+            pred_results_clips[clip_idx + 1] = []
+        results = pred_results[idx]
+        frame_num = data_idx + config.seq_len
+        for result in results:
+            new_result = {
+                "frame": frame_num,
+                "sample_idx": result["sample_idx"],
+                "label": result["label"],
+            }
+            pred_results_clips[clip_idx + 1].append(new_result)
+
+    json_save_dir = os.path.join(save_dir, "json")
+    os.makedirs(json_save_dir, exist_ok=True)
+    for clip_num, results_clip in pred_results_clips.items():
+        path = os.path.join(json_save_dir, f"{stage}-{clip_num:02d}-v{version}.json")
+        json_handler.dump(results_clip, path)
 
     print("=> complete")
 
