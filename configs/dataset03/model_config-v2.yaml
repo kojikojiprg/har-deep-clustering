@@ -22,7 +22,7 @@ autoencoder:
   nch: 24
 
 clustering:
-  n_clusters: 6
+  n_clusters: 10
   ndf: 32
   alpha: 2  # freedom of student T
   roialign:
