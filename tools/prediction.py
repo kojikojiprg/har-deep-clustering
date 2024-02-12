@@ -20,7 +20,6 @@ def parser():
 
     # positional
     parser.add_argument("dataset_dir", type=str)
-    parser.add_argument("model_type", type=str, help="'frame_flow' or 'flow'")
     parser.add_argument("stage", type=str, help="'train' or 'test'")
 
     # optional
@@ -48,7 +47,6 @@ def main():
     # get args
     args = parser()
     dataset_dir = args.dataset_dir
-    model_type = args.model_type
     stage = args.stage
     dataset_type = args.dataset_type
     version = args.version
@@ -86,20 +84,19 @@ def main():
     n_samples_batch = datamodule.n_samples_batch
     checkpoint_dir = os.path.join(checkpoint_dir, dataset_type)
     model = DeepClusteringModel(
-        model_type,
         config,
         n_samples,
         n_samples_batch,
         checkpoint_dir,
         version,
-        load_autoencoder_checkpoint=True,
+        load_autoencoder_checkpoint=False,
     )
 
     checkpoint_dir = "models"
     checkpoint_path = os.path.join(
         checkpoint_dir,
         dataset_type,
-        model_type,
+        "deep_clustering_model",
         f"dcm_seq{config.seq_len}_last-v{version}.ckpt",
     )
 
@@ -117,7 +114,7 @@ def main():
     )
 
     print("=> plotting scatter")
-    save_dir = os.path.join("out", dataset_type, model_type, f"v{version}")
+    save_dir = os.path.join("out", dataset_type, f"v{version}")
     os.makedirs(save_dir, exist_ok=True)
 
     # collect z
