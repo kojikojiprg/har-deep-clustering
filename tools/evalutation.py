@@ -141,7 +141,7 @@ def main():
             trues, preds, target_names=list(label_name.values()), output_dict=True
         )
     ).T.round(3)
-    eval_df.to_csv(f"out/{dataset_type}/v{version}/eval_{stage}.csv", index=False)
+    eval_df.to_csv(f"out/{dataset_type}/v{version}/eval_{stage}.csv")
     print(f"saved evaluation summary in 'out/{dataset_type}/v{version}/eval_{stage}.csv'.")
 
     # plot confusion matrix
