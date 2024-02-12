@@ -13,7 +13,6 @@ from .autoencoder import AutoencoderModule
 class DeepClusteringModel(AbstractDeepClusteringModel):
     def __init__(
         self,
-        model_type: str,
         cfg: SimpleNamespace,
         n_samples: int,
         n_samples_batch: int,
@@ -21,9 +20,7 @@ class DeepClusteringModel(AbstractDeepClusteringModel):
         version: Optional[int] = None,
         load_autoencoder_checkpoint: bool = True,
     ):
-        super().__init__(
-            model_type, cfg, n_samples, n_samples_batch, checkpoint_dir, version
-        )
+        super().__init__(cfg, n_samples, n_samples_batch, checkpoint_dir, version)
         if load_autoencoder_checkpoint:
             ae_frame_ckpt = os.path.join(
                 checkpoint_dir, "autoencoder", f"ae_frame_seq{cfg.seq_len}_last.ckpt"

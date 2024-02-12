@@ -15,7 +15,6 @@ from .clustering_module import ClusteringModule
 class AbstractDeepClusteringModel(LightningModule, metaclass=ABCMeta):
     def __init__(
         self,
-        model_type: str,
         cfg: SimpleNamespace,
         n_samples: int,
         n_samples_batch: int,
@@ -35,7 +34,7 @@ class AbstractDeepClusteringModel(LightningModule, metaclass=ABCMeta):
         self.lc = nn.KLDivLoss(reduction="sum")
 
         if checkpoint_dir is not None:
-            checkpoint_dir = os.path.join(checkpoint_dir, model_type)
+            checkpoint_dir = os.path.join(checkpoint_dir, "deep_clustering_model")
             if version is not None:
                 vstr = f"-v{version}"
             else:
