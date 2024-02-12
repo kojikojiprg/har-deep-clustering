@@ -10,9 +10,6 @@ class ClusteringModule(nn.Module):
         self._n_samples = n_samples
         self._n_samples_batch = n_samples_batch
 
-        # self._lmd_vis = 1  # v0
-        self._lmd_vis = 4  # v1, v2
-
         # get configs
         self._img_w = cfg.img_size.w
         self._img_h = cfg.img_size.h
@@ -37,6 +34,8 @@ class ClusteringModule(nn.Module):
         self._add_spc_feature = cfg.add_spacial_feature
         if self._add_spc_feature:
             self._emb_spacial = nn.Linear(1, cfg.ndf)
+            self._attn_vis_spc = nn.MultiheadAttention(cfg.ndf, 4, 0.1, batch_first=True)
+            self._attn_spc_vis = nn.MultiheadAttention(cfg.ndf, 4, 0.1, batch_first=True)
 
         # centroids
         # z_vis = torch.normal(0, 0.1, (cfg.n_clusters, 480 * os * os))
@@ -46,6 +45,7 @@ class ClusteringModule(nn.Module):
             z_spc = torch.rand((cfg.n_clusters, 1))
             z_spc = self._emb_spacial(z_spc)
             z = z_vis + z_spc
+            # z = self._feature_fusion(z_vis, z_spc)
         else:
             z = z_vis
         self._centroids = nn.ParameterList(
@@ -63,6 +63,12 @@ class ClusteringModule(nn.Module):
     @property
     def target_distribution(self):
         return self._target_distribution
+
+    def _feature_fusion(self, vis, spc):
+        attn_vis = self._attn_vis_spc(vis, spc, spc, need_weights=False)[0]
+        # attn_spc = self._attn_vis_spc(spc, vis, vis, need_weights=False)[0]
+        # return attn_vis + attn_spc
+        return attn_vis
 
     def forward(self, z_vis, bboxs, norms):
         # visual feature
@@ -93,20 +99,17 @@ class ClusteringModule(nn.Module):
                 norms = norms.view(bn, sn, 1)
                 norms = norms[b][mask_not_nan]
                 z_spc = self._emb_spacial(norms)
-                # print("z_vis", z_vis[b][mask_not_nan][0, :4])
-                # print("z_spc", z_spc[0, :4])
 
                 # merge feature
-                z = z_vis[b][mask_not_nan] * self._lmd_vis + z_spc
+                z = z_vis[b][mask_not_nan] * 4 + z_spc
+                # z = self._feature_fusion(z_vis[b][mask_not_nan], z_spc)
             else:
                 z = z_vis[b][mask_not_nan]
 
             # student T
             s[b, : z.shape[0]] = self._student_t(z)
-            # print("s", s[0, :, :4])
 
             z_all[b, : z.shape[0]] = z.detach()
-            # print("z", z_all[0, :, :4])
 
         # calc cluster
         c = s.argmax(dim=2)
