@@ -1,8 +1,9 @@
+#
 batch_size: 1
 seq_len: 20
-epochs: 200
+epochs: 100
 update_interval: 1
-accumulate_grad_batches: 32
+accumulate_grad_batches: 64
 
 img_size:
   w: 1280
@@ -21,13 +22,14 @@ autoencoder:
   nch: 24
 
 clustering:
-  n_clusters: 6
+  n_clusters: 15
   ndf: 32
   alpha: 2  # freedom of student T
   roialign:
     output_size: 5
     spatial_scale: 0.125
     aligned: True
+  add_spacial_feature: False
 
 optim:
   lr_rate_ae_frame: 0.0001

@@ -59,7 +59,7 @@ def main():
             dataset_type = os.path.basename(os.path.dirname(dataset_dir))
         else:
             dataset_type = os.path.basename(dataset_dir)
-    datamodule = Datamodule(dataset_dir, dataset_type, config, "train")
+    datamodule = Datamodule(dataset_dir, dataset_type, config, "train", augment_data=True)
 
     # create model
     print("=> create model")

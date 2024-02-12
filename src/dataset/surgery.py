@@ -13,38 +13,47 @@ from dataset.abstract_dataset import AbstractDataset
 from utils import json_handler, video
 
 
-class VideoDataset(AbstractDataset):
-    def __init__(self, dataset_dir: str, cfg: SimpleNamespace, stage: str):
+class SurgeryDataset(AbstractDataset):
+    def __init__(
+        self, dataset_dir: str, cfg: SimpleNamespace, augment_data: bool = False
+    ):
         super().__init__(cfg.seq_len)
         self.w = cfg.img_size.w
         self.h = cfg.img_size.h
+
         self._norms = []
         self._start_idxs = []
-        self._frame_num_period = 1
 
-        self._create_dataset(dataset_dir, stage)
+        self._create_dataset(dataset_dir, augment_data)
 
-    def _create_dataset(self, dataset_dir, stage):
+    @property
+    def start_idxs(self):
+        return self._start_idxs
+
+    def _create_dataset(self, dataset_dir, augment_data):
         clip_dirs = sorted(glob(os.path.join(dataset_dir, "*/")))
         clip_paths = sorted(glob(os.path.join(dataset_dir, "*.mp4")))
         # clip_dirs = clip_dirs[:1]
         # clip_paths = clip_paths[:1]
 
-        # frame and flow
         frame_size, frame_lengths = self._load_frames(clip_paths)
         self._load_opticalflows(clip_dirs)
-        self._transform_frame_flow()
 
-        # bbox
         self._load_bboxs(clip_dirs, frame_size)
         self._calc_norm_from_ot(clip_dirs, frame_size)
 
         self._calc_start_idxs(frame_lengths)
 
+        if augment_data:
+            self._augment_data(frame_lengths)
+
+        self._transform_frame_flow()
+
     def _load_frames(self, clip_paths):
         frame_lengths = []
         for clip_path in tqdm(clip_paths, ncols=100, desc="frame"):
             cap = video.Capture(clip_path)
+            size = cap.size
             frames = []
             for _ in range(cap.frame_count):
                 frame = cap.read()[1]
@@ -52,10 +61,10 @@ class VideoDataset(AbstractDataset):
                 frames.append(frame)
             frame_lengths.append(len(frames))
             self._frames.append(frames)
-            del frames
+            del frames, cap
 
         # TODO return all frame sizes
-        return cap.size, frame_lengths
+        return size, frame_lengths
 
     def _load_opticalflows(self, clip_dirs):
         for clip_dir in tqdm(clip_dirs, ncols=100, desc="flow"):
@@ -66,11 +75,6 @@ class VideoDataset(AbstractDataset):
                 flows_resized.append(flow)
             self._flows.append(flows_resized)
             del flows, flows_resized
-
-    def _transform_frame_flow(self):
-        for i in tqdm(range(len(self._frames)), ncols=100, desc="transform"):
-            self._frames[i] = super().transform_imgs(self._frames[i])
-            self._flows[i] = super().transform_imgs(self._flows[i])
 
     def _load_bboxs(self, clip_dirs, frame_size):
         rx = self.w / frame_size[0]
@@ -83,10 +87,7 @@ class VideoDataset(AbstractDataset):
             bboxs_clip = {}
             for data in json_data:
                 frame_num = data["frame"]
-                if (
-                    frame_num % self._frame_num_period != 0
-                    and frame_num < self._seq_len
-                ):
+                if frame_num < self._seq_len:
                     continue
 
                 bbox = np.array(data["bbox"]) * np.array([rx, ry, rx, ry])
@@ -122,13 +123,42 @@ class VideoDataset(AbstractDataset):
 
     def _calc_start_idxs(self, frame_lengths):
         for clip_idx, frame_length in enumerate(frame_lengths):
-            for data_idx in range(
-                0, frame_length - self._seq_len + 1, self._frame_num_period
-            ):
+            for data_idx in range(frame_length - self._seq_len + 1):
                 frame_num = data_idx + self._seq_len
                 if frame_num not in self._bboxs[clip_idx]:
                     continue
                 self._start_idxs.append((clip_idx, data_idx))
+
+    def _augment_data(self, frame_lengths):
+        for clip_idx, frame_length in enumerate(
+            tqdm(frame_lengths, ncols=100, desc="augmentation")
+        ):
+            self._frames.append(
+                [cv2.flip(frame, 1) for frame in self._frames[clip_idx]]
+            )
+            self._flows.append([cv2.flip(flow, 1) for flow in self._flows[clip_idx]])
+
+            augmented_bboxs = {}
+            augmented_norms = {}
+            augmented_clip_idx = clip_idx + len(frame_lengths)
+            for data_idx in range(frame_length - self._seq_len + 1):
+                frame_num = data_idx + self._seq_len
+                if frame_num not in self._bboxs[clip_idx]:
+                    continue
+                augmented_bboxs[frame_num] = [
+                    [self.w - bbox[2], bbox[1], self.w - bbox[0], bbox[3]]
+                    for bbox in self._bboxs[clip_idx][frame_num]
+                ]
+                augmented_norms[frame_num] = self._norms[clip_idx][frame_num]
+                self._start_idxs.append((augmented_clip_idx, data_idx))
+
+            self._bboxs.append(augmented_bboxs)
+            self._norms.append(augmented_norms)
+
+    def _transform_frame_flow(self):
+        for i in tqdm(range(len(self._frames)), ncols=100, desc="transform"):
+            self._frames[i] = super().transform_imgs(self._frames[i])
+            self._flows[i] = super().transform_imgs(self._flows[i])
 
     def __len__(self):
         return len(self._start_idxs)

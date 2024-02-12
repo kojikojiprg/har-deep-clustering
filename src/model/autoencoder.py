@@ -1,3 +1,4 @@
+import os
 import sys
 from types import SimpleNamespace
 
@@ -160,6 +161,8 @@ class AutoencoderModule(LightningModule):
         _, fakes = self._ae(x)
 
         # save fig
+        out_dir = "out/images"
+        os.makedirs(out_dir, exist_ok=True)
         if self._datatype == "frame":
             frames = frames[:, :, -1]
             frames = frames.permute(0, 2, 3, 1).detach().cpu().numpy()
@@ -167,8 +170,8 @@ class AutoencoderModule(LightningModule):
             fakes = fakes.permute(0, 2, 3, 1).detach().cpu().numpy()
             frames = ((frames + 1) / 2 * 255).astype(np.uint8)
             fakes = ((fakes + 1) / 2 * 255).astype(np.uint8)
-            cv2.imwrite(f"images/batch{batch_idx}_framein.jpg", frames[0])
-            cv2.imwrite(f"images/batch{batch_idx}_frameout.jpg", fakes[0])
+            cv2.imwrite(f"{out_dir}/batch{batch_idx}_framein.jpg", frames[0])
+            cv2.imwrite(f"{out_dir}/batch{batch_idx}_frameout.jpg", fakes[0])
 
         elif self._datatype == "flow":
             flow = flows[:, :, -1].permute(0, 2, 3, 1).cpu().numpy()[0]
@@ -176,8 +179,8 @@ class AutoencoderModule(LightningModule):
             fakes = fakes[:, :, -1]
             flow_fake = fakes.permute(0, 2, 3, 1).cpu().numpy()[0]
             flow_fake = flow_to_rgb(flow_fake)
-            cv2.imwrite(f"images/batch{batch_idx}_flowin.jpg", flow)
-            cv2.imwrite(f"images/batch{batch_idx}_flowout.jpg", flow_fake)
+            cv2.imwrite(f"{out_dir}/batch{batch_idx}_flowin.jpg", flow)
+            cv2.imwrite(f"{out_dir}/batch{batch_idx}_flowout.jpg", flow_fake)
 
     def configure_optimizers(self):
         # optimizer
