@@ -9,7 +9,7 @@ from lightning.pytorch.loggers import TensorBoardLogger
 
 sys.path.append("src")
 from dataset import Datamodule
-from model import select_deep_clustering_module
+from model import DeepClusteringModel
 from utils import file_io
 
 
@@ -81,7 +81,7 @@ def main():
     n_samples = datamodule.n_samples
     n_samples_batch = datamodule.n_samples_batch
     checkpoint_dir = os.path.join(checkpoint_dir, dataset_type)
-    model = select_deep_clustering_module(
+    model = DeepClusteringModel(
         model_type,
         config,
         n_samples,
