@@ -5,9 +5,7 @@ videos/
 notebooks/
 logs/
 out/
-images/
 checkpoints/
-*.png
 *.out
 
 # Byte-compiled / optimized / DLL files

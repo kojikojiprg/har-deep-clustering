@@ -1,5 +1,13 @@
-# har-deep-clustering
-This project is for clustering human activities.
+# Spatio-Temporal Unsupervised Individual Clustering for Operating Room Videos
+The proposed model performs unsupervised activity classification for individuals captured in video frames. While there are numerous models that achieve high accuracy in activity classification using supervised learning, there is currently no model that accomplishes this task solely through unsupervised learning.
+
+Real-world videos collected from smartphones or surveillance cameras often span long durations, making it challenging to clearly discern activities. Consequently, preparing accurate ground truth labels, as seen in research datasets, becomes difficult. This limitation prevents the use of supervised learning models.
+
+However, our model overcomes this hurdle. By leveraging videos and individuals' bounding boxes, it achieves personalized activity classification without relying on labeled data. Specifically, we utilize bounding boxes detected during pose estimation within [this repository](https://github.com/kojikojiprg/pose_estimation).
+
+![model](images/model.png)
+
+![result](images/result.gif)
 
 # Environments
 - Ubuntu: 20.04
@@ -19,7 +27,7 @@ Python tools/training_autoencoder.py [-h] [-dt DATASET_TYPE] [-mc MODEL_CONFIG_P
                                dataset_dir datatype
 ```
 positional arguments:
-  - dataset_dir
+  - dataset_dir           The directory of dataset
   - datatype              'frame' or 'flow'
 
 optional arguments:
