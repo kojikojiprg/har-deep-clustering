@@ -46,6 +46,9 @@ pip install -U pip
 pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu121
 ```
 
+# Prepairing Bounding Boxes
+We extract individual bounding boxs using [this repository](https://github.com/kojikojiprg/pose_estimation), which is used for our research projects.
+
 # Optical Flow
 Calcurate the oprtical flow from .mp4 videos.
 The output file 'flow.npy' will be stored into the dataset directory.
