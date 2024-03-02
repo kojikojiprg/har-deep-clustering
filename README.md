@@ -8,6 +8,7 @@ However, our model overcomes this hurdle. By leveraging videos and individuals' 
 Our proposed model consists of two autoencoders and clustering layer.
 ![model](images/model.png)
 
+The result sample of our dataset.
 ![result](images/result.gif)
 
 # Environments
