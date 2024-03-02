@@ -5,7 +5,7 @@ Real-world videos collected from smartphones or surveillance cameras often span 
 
 However, our model overcomes this hurdle. By leveraging videos and individuals' bounding boxes, it achieves personalized activity classification without relying on labeled data. Specifically, we utilize bounding boxes detected during pose estimation within [this repository](https://github.com/kojikojiprg/pose_estimation).
 
-Our proposed model consists of two autoencoders and clustering layer. 
+Our proposed model consists of two autoencoders and clustering layer.
 ![model](images/model.png)
 
 ![result](images/result.gif)
@@ -14,6 +14,22 @@ Our proposed model consists of two autoencoders and clustering layer.
 - Ubuntu: 20.04
 - Python: 3.9.15
 - CUDA: 12.0
+
+# Dataset Structure
+The dataset repository consists of train and test. Each folder contains an optional number of .mp4 files.
+
+```
+[dataset root]
+├── test
+│   ├── test_1.mp4
+│   ...
+│   └── test_n.mp4
+│
+└── train
+    ├── train_1.mp4
+    ...
+    └── train_n.mp4
+```
 
 # Quick Start
 ## Installation
@@ -27,7 +43,7 @@ Calcurate the oprtical flow from .mp4 videos.
 The output file 'flow.npy' will be stored into the dataset directory.
 
 ```
-python tools/optical_flow.py [-h] [-dt DATASET_TYPE] [--comp] dataset_dir
+python tools/optical_flow.py [-dt DATASET_TYPE] [--comp] dataset_dir
 ```
 
 positional arguments:
@@ -40,7 +56,7 @@ optional arguments:
 ## Training Autoencoders
 Pre train the autoencoders. The checkpoints will be saved into ```./models/[DATASET_TYPE]/autoencoders/```.
 ```
-Python tools/training_autoencoder.py [-h] [-dt DATASET_TYPE] [-mc MODEL_CONFIG_PATH] [--checkpoint_dir CHECKPOINT_DIR] [--log_dir LOG_DIR] [-g [GPUS ...]] dataset_dir datatype
+Python tools/training_autoencoder.py [-dt DATASET_TYPE] [-mc MODEL_CONFIG_PATH] [--checkpoint_dir CHECKPOINT_DIR] [--log_dir LOG_DIR] [-g [GPUS ...]] dataset_dir datatype
 ```
 positional arguments:
   - dataset_dir           The directory of dataset
