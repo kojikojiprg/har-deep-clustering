@@ -5,6 +5,7 @@ Real-world videos collected from smartphones or surveillance cameras often span 
 
 However, our model overcomes this hurdle. By leveraging videos and individuals' bounding boxes, it achieves personalized activity classification without relying on labeled data. Specifically, we utilize bounding boxes detected during pose estimation within [this repository](https://github.com/kojikojiprg/pose_estimation).
 
+Our proposed model consists of two autoencoders and clustering layer. 
 ![model](images/model.png)
 
 ![result](images/result.gif)
@@ -21,17 +22,33 @@ pip install -U pip
 pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu121
 ```
 
-## Training Autoencoders
+## Calcurate Optical Flow
+Calcurate the oprtical flow from .mp4 videos.
+The output file 'flow.npy' will be stored into the dataset directory.
+
 ```
-Python tools/training_autoencoder.py [-h] [-dt DATASET_TYPE] [-mc MODEL_CONFIG_PATH] [--checkpoint_dir CHECKPOINT_DIR] [--log_dir LOG_DIR] [-g [GPUS ...]]
-                               dataset_dir datatype
+python tools/optical_flow.py [-h] [-dt DATASET_TYPE] [--comp] dataset_dir
+```
+
+positional arguments:
+  dataset_dir           path of input dataset directory
+
+optional arguments:
+  - --comp                compress output from float32 to float16.
+
+
+## Training Autoencoders
+Pre train the autoencoders. The checkpoints will be saved into ```./models/[DATASET_TYPE]/autoencoders/```.
+```
+Python tools/training_autoencoder.py [-h] [-dt DATASET_TYPE] [-mc MODEL_CONFIG_PATH] [--checkpoint_dir CHECKPOINT_DIR] [--log_dir LOG_DIR] [-g [GPUS ...]] dataset_dir datatype
 ```
 positional arguments:
   - dataset_dir           The directory of dataset
-  - datatype              'frame' or 'flow'
+  - datatype              Select from 'frame' or 'flow'.
+    - 'frame' is for RGB frame of .mp4 videos.
+    - 'flow' is for the optical flow calcurated by ```tools/optical_flow.py```.
 
 optional arguments:
-  - -h, --help            show this help message and exit
   - -dt DATASET_TYPE, --dataset_type DATASET_TYPE
   - -mc MODEL_CONFIG_PATH, --model_config_path MODEL_CONFIG_PATH
   - --checkpoint_dir CHECKPOINT_DIR
@@ -39,15 +56,15 @@ optional arguments:
   - -g [GPUS ...], --gpus [GPUS ...] gpu ids
 
 ## Training DeepClusteringModel
+Train our proposed model. The checkpoints will be saved into ```./models/[DATASET_TYPE]/deep_clustering_model/```.
 ```
-python tools/training.py [-h] [-dt DATASET_TYPE] [-v VERSION] [-mc MODEL_CONFIG_DIR] [--checkpoint_dir CHECKPOINT_DIR] [--log_dir LOG_DIR] [-g [GPUS ...]] dataset_dir
+python tools/training.py [-dt DATASET_TYPE] [-v VERSION] [-mc MODEL_CONFIG_DIR] [--checkpoint_dir CHECKPOINT_DIR] [--log_dir LOG_DIR] [-g [GPUS ...]] dataset_dir
 ```
 
 positional arguments:
   - dataset_dir
 
 optional arguments:
-  - -h, --help            show this help message and exit
   - -dt DATASET_TYPE, --dataset_type DATASET_TYPE
   - -v VERSION, --version VERSION
   - -mc MODEL_CONFIG_DIR, --model_config_dir MODEL_CONFIG_DIR
@@ -56,8 +73,9 @@ optional arguments:
   - -g [GPUS ...], --gpus [GPUS ...] gpu ids
 
 ## Prediction
+Pred the clustering labels of individuals in the videos. The results will be saved into ```./out/[DATASET_TYPE]/v[VERSION]/```.
 ```
-python tools/prediction.py [-h] [-dt DATASET_TYPE] [-v VERSION] [-mc MODEL_CONFIG_DIR] [--checkpoint_dir CHECKPOINT_DIR] [--log_dir LOG_DIR] [-g [GPUS ...]] dataset_dir stage
+python tools/prediction.py [-dt DATASET_TYPE] [-v VERSION] [-mc MODEL_CONFIG_DIR] [--checkpoint_dir CHECKPOINT_DIR] [--log_dir LOG_DIR] [-g [GPUS ...]] dataset_dir stage
 ```
 
 positional arguments:
@@ -65,7 +83,6 @@ positional arguments:
   - stage                 'train' or 'test'
 
 optional arguments:
-  - -h, --help            show this help message and exit
   - -dt DATASET_TYPE, --dataset_type DATASET_TYPE
   - -v VERSION, --version VERSION
   - -mc MODEL_CONFIG_DIR, --model_config_dir MODEL_CONFIG_DIR
@@ -74,8 +91,9 @@ optional arguments:
   - -g [GPUS ...], --gpus [GPUS ...] gpu ids
 
 ## Evaluation
+Evaluate the accuracy of the model. This script calcurates and outputs the confusion matrices and accuracy scores. The results will be saved into ```./out/[DATASET_TYPE]/v[VERSION]/```.
 ```
-python tools/evalutation.py [-h] [-dt DATASET_TYPE] [-mc MODEL_CONFIG_DIR] dataset_dir stage version
+python tools/evalutation.py [-dt DATASET_TYPE] [-mc MODEL_CONFIG_DIR] dataset_dir stage version
 ```
 
 positional arguments:
@@ -84,6 +102,5 @@ positional arguments:
   - version
 
 optional arguments:
-  - -h, --help            show this help message and exit
   - -dt DATASET_TYPE, --dataset_type DATASET_TYPE
   - -mc MODEL_CONFIG_DIR, --model_config_dir MODEL_CONFIG_DIR
