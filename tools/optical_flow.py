@@ -20,14 +20,15 @@ def parser():
         help="path of input dataset directory",
     )
     # optional
-    parser.add_argument(
-        "-dt",
-        "--dataset_type",
-        type=str,
-        required=False,
-        default="video",
-        help="select from 'collective' or 'volleyball or 'video', default by 'video'.",
-    )
+    # TODO: collective activity and volleyball
+    # parser.add_argument(
+    #     "-dt",
+    #     "--dataset_type",
+    #     type=str,
+    #     required=False,
+    #     default="video",
+    #     help="select from 'collective', 'volleyball or 'video', default by 'video'.",
+    # )
     parser.add_argument(
         "--comp",
         required=False,
@@ -42,7 +43,8 @@ def parser():
 def main():
     args = parser()
     dataset_dir = args.dataset_dir
-    dataset_type = args.dataset_type.lower()
+    # dataset_type = args.dataset_type.lower()
+    dataset_type = "video"  # TODO: collective activity and volleyball
     comp = args.comp
 
     if dataset_type is None:
@@ -70,7 +72,9 @@ def main():
 
         if dataset_type != "video":
             frame_paths = sorted(glob(os.path.join(clip_dir, "*.jpg")))
-            frames = [cv2.imread(frame_path) for frame_path in tqdm(frame_paths, leave=False)]
+            frames = [
+                cv2.imread(frame_path) for frame_path in tqdm(frame_paths, leave=False)
+            ]
         else:
             clip_path = os.path.dirname(clip_dir) + ".mp4"
             cap = video.Capture(clip_path)
