@@ -20,7 +20,7 @@ The result sample of our dataset.
 The dataset repository consists of train and test. Each folder contains an optional number of .mp4 files.
 
 ```
-[dataset root]
+[dataset_dir]
 ├── test
 │   ├── test_1.mp4
 │   ...
@@ -32,14 +32,21 @@ The dataset repository consists of train and test. Each folder contains an optio
     └── train_n.mp4
 ```
 
-# Quick Start
-## Installation
+# Spatial Feature
+The accuracy is enhanced by incorporating spatial features specific to the surgical environment which are crucial in recognizing human actions. Operating rooms exhibit distinct spatial characteristics, with individuals positioned around the operating table. For instance, surgeons and scrub nurses gather around the operating table, anesthetists are positioned along the patient’s head, and circulators move freely in and out of the operating room. As a simple feature, we manually specify the central coordinates of the operating tables and calculate the L2 norm between the centers of the individual’s bounding box and operating table.
+
+## Usage
+1. If you wand to use the spatial feature, please set the ```add_spatial_feature``` of ```clustering``` in the ```./configs/model_config.yaml``` to True.
+2. Put the coordination of the center of the object like operating table into ```dataset_dir/[STAGE]/[VIDEO]/coor.npy```, where STAGE is selected from 'train' or 'test' and VIDEO denotes the file name of .mp4 videos.
+
+
+# Setup
 ```
 pip install -U pip
 pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu121
 ```
 
-## Calcurate Optical Flow
+# Optical Flow
 Calcurate the oprtical flow from .mp4 videos.
 The output file 'flow.npy' will be stored into the dataset directory.
 
@@ -54,6 +61,7 @@ optional arguments:
   - --comp                compress output from float32 to float16.
 
 
+# Training Models
 ## Training Autoencoders
 Pre train the autoencoders. The checkpoints will be saved into ```./models/[DATASET_TYPE]/autoencoders/```.
 ```
@@ -89,7 +97,7 @@ optional arguments:
   - --log_dir LOG_DIR
   - -g [GPUS ...], --gpus [GPUS ...] gpu ids
 
-## Prediction
+# Prediction
 Pred the clustering labels of individuals in the videos. The results will be saved into ```./out/[DATASET_TYPE]/v[VERSION]/```.
 ```
 python tools/prediction.py [-dt DATASET_TYPE] [-v VERSION] [-mc MODEL_CONFIG_DIR] [--checkpoint_dir CHECKPOINT_DIR] [--log_dir LOG_DIR] [-g [GPUS ...]] dataset_dir stage
@@ -107,7 +115,7 @@ optional arguments:
   - --log_dir LOG_DIR
   - -g [GPUS ...], --gpus [GPUS ...] gpu ids
 
-## Evaluation
+# Evaluation
 Evaluate the accuracy of the model. This script calcurates and outputs the confusion matrices and accuracy scores. The results will be saved into ```./out/[DATASET_TYPE]/v[VERSION]/```.
 ```
 python tools/evalutation.py [-dt DATASET_TYPE] [-mc MODEL_CONFIG_DIR] dataset_dir stage version
@@ -121,3 +129,8 @@ positional arguments:
 optional arguments:
   - -dt DATASET_TYPE, --dataset_type DATASET_TYPE
   - -mc MODEL_CONFIG_DIR, --model_config_dir MODEL_CONFIG_DIR
+
+# Reference
+```
+
+```
