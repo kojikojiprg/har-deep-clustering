@@ -3,7 +3,7 @@ scipy
 matplotlib
 seaborn
 tqdm
-yaml
+pyyaml
 types-PyYAML
 
 opencv-python
