@@ -51,7 +51,7 @@ class SurgeryDataset(AbstractDataset):
 
     def _load_frames(self, clip_paths):
         frame_lengths = []
-        for clip_path in tqdm(clip_paths, ncols=100, desc="frame"):
+        for clip_path in tqdm(clip_paths, ncols=100, desc="n_frame"):
             cap = video.Capture(clip_path)
             size = cap.size
             frames = []
@@ -86,7 +86,7 @@ class SurgeryDataset(AbstractDataset):
             json_data = json_handler.load(json_path)
             bboxs_clip = {}
             for data in json_data:
-                frame_num = data["frame"]
+                frame_num = data["n_frame"]
                 if frame_num < self._seq_len:
                     continue
 

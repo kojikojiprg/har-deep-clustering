@@ -87,7 +87,7 @@ class CollectiveActivityDataset(AbstractDataset):
 
     def _load_frames(self, dataset_dir, clip_names):
         raw_frame_sizes = {}
-        for clip_name in tqdm(clip_names, ncols=100, desc="frame"):
+        for clip_name in tqdm(clip_names, ncols=100, desc="n_frame"):
             frames = []
             img_paths = sorted(glob(os.path.join(dataset_dir, clip_name, "*.jpg")))
             for i, img_path in enumerate(tqdm(img_paths, ncols=100, leave=False)):
@@ -163,9 +163,9 @@ class CollectiveActivityDataset(AbstractDataset):
 
     def __getitem__(self, idx):
         clip_idx, target_idx = self._target_idxs[idx]
-        frames = self._frames[clip_idx][target_idx - self._seq_len: target_idx]
+        frames = self._frames[clip_idx][target_idx - self._seq_len : target_idx]
         frames = frames.transpose(1, 0)
-        flows = self._flows[clip_idx][target_idx - self._seq_len: target_idx]
+        flows = self._flows[clip_idx][target_idx - self._seq_len : target_idx]
         flows = flows.transpose(1, 0)
         try:
             bboxs = self._bboxs[clip_idx][target_idx]

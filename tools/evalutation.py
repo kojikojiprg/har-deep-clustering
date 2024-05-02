@@ -94,18 +94,22 @@ def main():
         hist = {i: [] for i in range(n_clusters)}
         hist_plot = {i: [] for i in label_name.keys()}
         for pred_result in pred_results:
-            frame_num = pred_result["frame"]
+            frame_num = pred_result["n_frame"]
             sample_idx = pred_result["sample_idx"]
 
             try:
                 true_result = [
-                    result for result in true_results if result["frame"] == frame_num
+                    result for result in true_results if result["n_frame"] == frame_num
                 ][sample_idx]
             except IndexError:
                 # check annotation
                 print(clip_num, frame_num, sample_idx, pred_result)
                 print(
-                    [result for result in true_results if result["frame"] == frame_num]
+                    [
+                        result
+                        for result in true_results
+                        if result["n_frame"] == frame_num
+                    ]
                 )
                 raise IndexError
 
@@ -125,11 +129,11 @@ def main():
 
         sort_pattern = sort_patterns[clip_num]
         for pred_result in pred_results:
-            frame_num = pred_result["frame"]
+            frame_num = pred_result["n_frame"]
             sample_idx = pred_result["sample_idx"]
 
             true_result = [
-                result for result in true_results if result["frame"] == frame_num
+                result for result in true_results if result["n_frame"] == frame_num
             ][sample_idx]
             trues.append(true_result["label"])
             preds.append(sort_pattern[pred_result["label"]])
@@ -142,7 +146,9 @@ def main():
         )
     ).T.round(3)
     eval_df.to_csv(f"out/{dataset_type}/v{version}/eval_{stage}.csv")
-    print(f"saved evaluation summary in 'out/{dataset_type}/v{version}/eval_{stage}.csv'.")
+    print(
+        f"saved evaluation summary in 'out/{dataset_type}/v{version}/eval_{stage}.csv'."
+    )
 
     # plot confusion matrix
     cm = confusion_matrix(trues, preds)

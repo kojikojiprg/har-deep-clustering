@@ -206,7 +206,7 @@ def main():
         frame_num = data_idx + config.seq_len
         for result in results:
             new_result = {
-                "frame": frame_num,
+                "n_frame": frame_num,
                 "sample_idx": result["sample_idx"],
                 "label": result["label"],
             }
