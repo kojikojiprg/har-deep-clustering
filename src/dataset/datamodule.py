@@ -7,7 +7,7 @@ from lightning.pytorch import LightningDataModule
 from torch.utils.data import DataLoader, Subset
 
 from .collective_activity import CollectiveActivityDataset
-from .surgery import SurgeryDataset
+from .video import VideoDataset
 from .volleyball import VolleyballDataset
 
 
@@ -24,9 +24,7 @@ class Datamodule(LightningDataModule):
         self._dataset_type = dataset_type
         self._batch_size = cfg.batch_size
 
-        self._dataset: Union[
-            CollectiveActivityDataset, VolleyballDataset, SurgeryDataset
-        ]
+        self._dataset: Union[CollectiveActivityDataset, VolleyballDataset, VideoDataset]
         self._val_dataset: Subset
         if dataset_type == "collective":
             self._dataset = CollectiveActivityDataset(dataset_dir, cfg, stage)
@@ -50,7 +48,7 @@ class Datamodule(LightningDataModule):
             #     )
         else:
             dataset_dir = os.path.join(dataset_dir, stage)
-            self._dataset = SurgeryDataset(dataset_dir, cfg, augment_data)
+            self._dataset = VideoDataset(dataset_dir, cfg, augment_data)
             if stage == "train":
                 self._val_dataset = Subset(
                     self._dataset, np.random.randint(0, len(self._dataset), 10).tolist()

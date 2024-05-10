@@ -13,7 +13,7 @@ from dataset.abstract_dataset import AbstractDataset
 from utils import json_handler, video
 
 
-class SurgeryDataset(AbstractDataset):
+class VideoDataset(AbstractDataset):
     def __init__(
         self, dataset_dir: str, cfg: SimpleNamespace, augment_data: bool = False
     ):
