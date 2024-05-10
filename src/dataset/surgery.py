@@ -51,7 +51,7 @@ class SurgeryDataset(AbstractDataset):
 
     def _load_frames(self, clip_paths):
         frame_lengths = []
-        for clip_path in tqdm(clip_paths, ncols=100, desc="n_frame"):
+        for clip_path in tqdm(clip_paths, ncols=100, desc="frame"):
             cap = video.Capture(clip_path)
             size = cap.size
             frames = []
